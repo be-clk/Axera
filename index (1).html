@@ -1,0 +1,1799 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TUA AXERA — Hibrit Görev Kontrol Merkezi</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --bg:        #020c1b;
+    --panel:     rgba(2, 18, 40, 0.88);
+    --border:    rgba(0, 220, 255, 0.18);
+    --accent:    #00dcff;
+    --accent2:   #00ff99;
+    --red:       #ff4455;
+    --yellow:    #ffd166;
+    --text:      #c8e6f5;
+    --textdim:   rgba(220, 240, 255, 0.75);
+    --mono:      'Share Tech Mono', monospace;
+    --orb:       'Orbitron', sans-serif;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    font-family: var(--mono);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: 52px 1fr 60px;
+    grid-template-columns: 340px 1fr 340px;
+    grid-template-areas:
+      "header header header"
+      "left   sim    right"
+      "footer footer footer";
+  }
+
+  #header {
+    grid-area: header;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    background: rgba(0,10,28,0.95);
+    border-bottom: 1px solid var(--border);
+    z-index: 10;
+    position: relative;
+  }
+  #header .logo { font-family: var(--orb); font-size: 15px; font-weight: 900; color: var(--accent); letter-spacing: 3px; z-index: 2; }
+  #header .logo span { color: var(--accent2); }
+  
+  .center-header { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 15px; z-index: 1;}
+  #clock { font-size: 13px; color: var(--textdim); letter-spacing: 2px; }
+  .dot-live { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--accent2); box-shadow: 0 0 6px var(--accent2); animation: blink 1.4s ease-in-out infinite; margin-right: 6px; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin: 6px; backdrop-filter: blur(8px); }
+  .panel-title { font-family: var(--orb); font-size: 12px; letter-spacing: 2px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 10px; text-transform: uppercase; }
+
+  #left { grid-area: left; display: flex; flex-direction: column; gap: 6px; padding: 6px; overflow-y: auto; scrollbar-width: none; }
+  #left::-webkit-scrollbar { display: none; }
+  #right { grid-area: right; display: flex; flex-direction: column; gap: 6px; padding: 6px; overflow-y: auto; scrollbar-width: none; }
+  #right::-webkit-scrollbar { display: none; }
+
+  #sim { grid-area: sim; position: relative; overflow: hidden; isolation: isolate; }
+  #sim canvas { width: 100% !important; height: 100% !important; display: block; }
+
+  #footer { grid-area: footer; display: flex; align-items: center; gap: 12px; padding: 0 20px; background: rgba(0,10,28,0.97); border-top: 1px solid var(--border); }
+  #status-bar { flex: 1; font-family: var(--orb); font-size: 13px; font-weight:bold; letter-spacing: 2px; padding: 8px 16px; border-radius: 4px; background: rgba(0,220,255,0.06); border: 1px solid var(--border); text-align: center; transition: background 0.3s, color 0.3s; }
+
+  .btn { font-family: var(--orb); font-size: 11px; letter-spacing: 2px; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; text-transform: uppercase; font-weight: 700; transition: all 0.2s; white-space: nowrap; }
+  .btn-go { background: linear-gradient(135deg, #00ff99, #00cc77); color: #001a0d; font-size: 12px; }
+  .btn-go:hover { box-shadow: 0 0 20px rgba(0,255,153,0.5); transform: translateY(-1px); }
+  .btn-go:disabled { background: #2a3a4a; color: #445; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-refresh { background: rgba(0,180,255,0.12); border: 1px solid rgba(0,180,255,0.3); color: var(--accent); }
+  .btn-refresh:hover { background: rgba(0,180,255,0.22); }
+  .btn-logs { background: rgba(255,209,102,0.1); border: 1px solid rgba(255,209,102,0.25); color: var(--yellow); }
+  .btn-logs:hover { background: rgba(255,209,102,0.2); }
+  .btn-cam { background: rgba(180,100,255,0.1); border: 1px solid rgba(180,100,255,0.3); color: #cc99ff; }
+  .btn-cam:hover { background: rgba(180,100,255,0.2); }
+  .btn-reset { background: rgba(255,68,85,0.12); border: 1px solid rgba(255,68,85,0.35); color: var(--red); }
+  .btn-reset:hover { background: rgba(255,68,85,0.25); }
+
+  select, input[type=range] { width: 100%; background: rgba(0,20,50,0.8); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 6px 8px; font-family: var(--mono); font-size: 12px; margin-top: 4px; }
+  select:focus { outline: none; border-color: var(--accent); }
+  input[type=range] { padding: 0; accent-color: var(--accent); height: 5px; cursor: pointer; }
+  input[type=checkbox] { accent-color: var(--accent2); width: 15px; height: 15px; cursor: pointer; }
+
+  .field-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--textdim); margin-bottom: 4px; }
+  .field-val { color: var(--yellow); font-size: 13px; font-weight: bold; min-width: 48px; text-align: right; }
+  .field-label { font-size: 11px; color: var(--textdim); margin-bottom: 3px; display: block; }
+
+  .tele-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tele-box { background: rgba(0,220,255,0.04); border: 1px solid rgba(0,220,255,0.12); border-radius: 5px; padding: 10px 12px; }
+  .tele-lbl { font-size: 10px; color: var(--textdim); letter-spacing: 1px; margin-bottom: 4px; }
+  .tele-val { font-family: var(--orb); font-size: 18px; color: #fff; }
+  .tele-unit { font-size: 11px; color: var(--textdim); margin-left: 3px; }
+
+  .wx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+  .wx-item { font-size: 12px; }
+  .wx-key { color: var(--textdim); font-size: 11px; }
+  .wx-val { color: var(--yellow); font-weight: bold; font-size: 13px; }
+
+  .risk-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--textdim); margin-bottom: 6px; }
+  .risk-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .dot-ok   { background: var(--accent2); box-shadow: 0 0 5px var(--accent2); }
+  .dot-warn { background: var(--yellow);  box-shadow: 0 0 5px var(--yellow); }
+  .dot-crit { background: var(--red);     box-shadow: 0 0 5px var(--red); }
+
+  .gauge-container { position: relative; width: 100%; max-width: 170px; margin: 4px auto; }
+  .gauge-svg { width: 100%; height: auto; filter: drop-shadow(0 0 4px rgba(0,220,255,0.2)); }
+  .gauge-text { font-family: var(--orb); font-size: 28px; fill: #fff; font-weight: 900; }
+  .gauge-sub { font-family: var(--orb); font-size: 12px; fill: var(--textdim); }
+  #gauge-path { transition: stroke-dashoffset 0.5s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.5s ease; }
+
+  #logs-table { font-size: 11px; width: 100%; border-collapse: collapse; }
+  #logs-table td { padding: 4px 6px; border-bottom: 1px solid rgba(0,220,255,0.06); color: var(--textdim); }
+  #logs-table td:first-child { color: var(--text); }
+  #logs-table tbody tr { transition: background 0.2s; }
+  #logs-table tbody tr:hover { background: rgba(0, 220, 255, 0.15); cursor: pointer; }
+  .log-go   { color: var(--accent2) !important; font-weight: bold; }
+  .log-scrub{ color: var(--red) !important; font-weight: bold; }
+
+  #cd-overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 20;
+  }
+  #cd-overlay.show { opacity: 1; }
+  #cd-num {
+    font-family: var(--orb);
+    font-size: 180px;
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 0 80px rgba(255,80,0,0.9), 0 0 200px rgba(255,80,0,0.4);
+  }
+
+  /* Stage separation HUD overlay */
+  #sep-hud {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: var(--orb);
+    font-size: 22px;
+    font-weight: 900;
+    color: #00ff99;
+    text-shadow: 0 0 30px rgba(0,255,153,0.8);
+    letter-spacing: 4px;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 25;
+    background: rgba(0,10,30,0.7);
+    border: 1px solid rgba(0,255,153,0.4);
+    border-radius: 8px;
+    padding: 12px 28px;
+    white-space: nowrap;
+  }
+  #sep-hud.show { opacity: 1; }
+  #sep-hud small { display: block; font-size: 11px; color: var(--textdim); letter-spacing: 2px; margin-top: 4px; }
+
+  .chip { display: inline-block; background: rgba(0,220,255,0.1); border: 1px solid rgba(0,220,255,0.2); border-radius: 20px; padding: 4px 12px; font-size: 11px; color: var(--accent); margin-top: 6px; }
+  .sep { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+  #log-scroll { max-height: 120px; overflow-y: auto; scrollbar-width: thin; }
+
+  /* YENİ NESİL HUD BİLDİRİM STİLLERİ (Eski Modalın Yerine) */
+  .modal-overlay {
+    position: fixed; top: 20px; right: 20px; left: auto; bottom: auto; background: transparent; backdrop-filter: none;
+    display: flex; align-items: flex-start; justify-content: flex-end; z-index: 1000;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s ease, transform 0.3s ease;
+    transform: translateX(50px);
+  }
+  .modal-overlay.show { opacity: 1; pointer-events: auto; transform: translateX(0); }
+  .modal-box {
+    background: rgba(10, 0, 5, 0.88); border-left: 4px solid var(--red); border-right: 1px solid rgba(255, 68, 85, 0.3); border-top: 1px solid rgba(255, 68, 85, 0.3); border-bottom: 1px solid rgba(255, 68, 85, 0.3); border-radius: 4px;
+    padding: 16px 20px; width: 350px; box-shadow: 0 0 20px rgba(255, 68, 85, 0.15);
+    display: flex; flex-direction: column; gap: 8px; backdrop-filter: blur(6px);
+  }
+  .modal-title { font-family: var(--orb); font-size: 13px; font-weight: 900; color: var(--red); letter-spacing: 2px; border-bottom: 1px solid rgba(255,68,85,0.3); padding-bottom: 6px; text-align: left; }
+  .modal-content { font-family: var(--mono); font-size: 12px; color: var(--text); white-space: pre-wrap; line-height: 1.5; max-height: 40vh; overflow-y: auto; text-align: left; }
+  .modal-btn { display: none; }
+
+  #left .panel:nth-child(3) input[type=range] {
+      display: none;
+  }
+</style>
+</head>
+<body>
+
+<header id="header">
+  <div class="logo">TUA <span>AXERA</span> TEAM — HİBRİT GÖREV KONTROL MERKEZİ</div>
+  <div class="center-header">
+    <div id="clock"><span class="dot-live"></span>CANLI SİSTEM</div>
+    <div id="clock-time" style="font-size:12px;color:var(--textdim);letter-spacing:2px"></div>
+  </div>
+  <div style="width:100px;"></div> 
+</header>
+
+<aside id="left">
+  <div class="panel">
+    <div class="panel-title">▸ Görev Konfigürasyonu</div>
+    <span class="field-label">Fırlatma Limanı</span>
+    <select id="sel-site"></select>
+    <span class="field-label" style="margin-top:8px">Kategori</span>
+    <select id="sel-kategori"></select>
+    <span class="field-label" style="margin-top:8px">Model</span>
+    <select id="sel-model"></select>
+    <div id="geo-chip" class="chip" style="margin-top:8px">Ekvator Hız Desteği: —</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">▸ Meteoroloji</div>
+    <div class="wx-grid" id="wx-grid">
+      <div class="wx-item"><span class="wx-key">Durum</span><br><span class="wx-val" id="wx-desc">—</span></div>
+      <div class="wx-item"><span class="wx-key">Rüzgar (kt)</span><br><span class="wx-val" id="wx-wind">—</span></div>
+      <div class="wx-item"><span class="wx-key">Sıcaklık (°C)</span><br><span class="wx-val" id="wx-temp">—</span></div>
+      <div class="wx-item"><span class="wx-key">Görüş (km)</span><br><span class="wx-val" id="wx-vis">—</span></div>
+      <div class="wx-item"><span class="wx-key">Bulut (%)</span><br><span class="wx-val" id="wx-clouds">—</span></div>
+      <div class="wx-item"><span class="wx-key">Rakım (m)</span><br><span class="wx-val" id="wx-rakim">—</span></div>
+    </div>
+    <button class="btn btn-refresh" type="button" style="margin-top:12px;width:100%" onclick="fetchWeather()">⟳ Hava Verisini Tazele</button>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">▸ Atmosferik & Uzay Havası Riskleri</div>
+    <div class="field-row"><span>Kp-Index (Jeomanyetik)</span><span class="field-val" id="v-kp">2.0</span></div>
+    <input type="range" id="kp" min="0" max="9" step="0.1" value="2" oninput="updateVal('v-kp',this.value,1)">
+    
+    <div class="field-row" style="margin-top:8px"><span>G-Ölçeği (Fırtına Sınıfı)</span><span class="field-val" id="v-gscale">1</span></div>
+    <input type="range" id="g-scale" min="1" max="5" step="1" value="1" oninput="updateVal('v-gscale',this.value,0)">
+    
+    <div class="field-row" style="margin-top:8px"><span>S-Ölçeği (Solar Radyasyon)</span><span class="field-val" id="v-sscale">1</span></div>
+    <input type="range" id="s-scale" min="1" max="5" step="1" value="1" oninput="updateVal('v-sscale',this.value,0)">
+    
+    <div class="field-row" style="margin-top:8px"><span>R-Ölçeği (Radyo Kesintisi)</span><span class="field-val" id="v-rscale">1</span></div>
+    <input type="range" id="r-scale" min="1" max="5" step="1" value="1" oninput="updateVal('v-rscale',this.value,0)">
+    
+    <div class="field-row" style="margin-top:8px"><span>Şimşek Mesafesi (km)</span><span class="field-val" id="v-light">25.0</span></div>
+    <input type="range" id="lightning" min="0" max="50" step="0.5" value="25" oninput="updateVal('v-light',this.value,1)">
+    
+    <div class="field-row" style="margin-top:8px"><span>Son Şimşek (dk)</span><span class="field-val" id="v-lastl">45</span></div>
+    <input type="range" id="last-lightning" min="0" max="60" step="1" value="45" oninput="updateVal('v-lastl',this.value,0)">
+    
+    <div class="field-row" style="margin-top:8px"><span>Elektrik Alanı (V/m)</span><span class="field-val" id="v-ef">500</span></div>
+    <input type="range" id="efield" min="0" max="3000" step="10" value="500" oninput="updateVal('v-ef',this.value,0)">
+    
+    <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">
+      <div style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="cumulus"><label for="cumulus" style="color:var(--textdim); cursor:pointer;">Kümülüs Risk</label></div>
+      <div style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="tec-stable" checked><label for="tec-stable" style="color:var(--textdim); cursor:pointer;">TEC Stabil</label></div>
+      <div style="display:flex;align-items:center;gap:6px;grid-column: span 2;"><input type="checkbox" id="wind-shear"><label for="wind-shear" style="color:var(--textdim); cursor:pointer;">Makaslama (Wind Shear) Tespit!</label></div>
+    </div>
+  </div>
+</aside>
+
+<main id="sim">
+  <canvas id="three-canvas"></canvas>
+  <div id="cd-overlay">
+    <div id="cd-num">5</div>
+  </div>
+  <div id="sep-hud">
+    💥 1. KADEME AYRILDI
+    <small>İRTİFA: 60 KM — 2. KADEME ATEŞLENDİ</small>
+  </div>
+
+  <div id="wind-vane-wrap" style="position:absolute;bottom:16px;right:16px;pointer-events:none;z-index:15;background:rgba(2,14,35,0.92);border:1px solid rgba(0,220,255,0.35);border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:0 0 18px rgba(0,220,255,0.12);">
+    <span style="font-family:Orbitron,sans-serif;font-size:9px;color:rgba(0,220,255,0.9);letter-spacing:3px;">RÜZGAR YÖN</span>
+    <svg id="wind-vane-svg" viewBox="0 0 64 64" width="80" height="80">
+      <circle cx="32" cy="32" r="28" fill="rgba(0,220,255,0.04)" stroke="rgba(0,220,255,0.3)" stroke-width="1"/>
+      <circle cx="32" cy="32" r="20" fill="none" stroke="rgba(0,220,255,0.1)" stroke-width="0.6"/>
+      <line x1="32" y1="4" x2="32" y2="60" stroke="rgba(0,220,255,0.15)" stroke-width="0.8"/>
+      <line x1="4" y1="32" x2="60" y2="32" stroke="rgba(0,220,255,0.15)" stroke-width="0.8"/>
+      <line x1="12" y1="12" x2="52" y2="52" stroke="rgba(0,220,255,0.07)" stroke-width="0.6"/>
+      <line x1="52" y1="12" x2="12" y2="52" stroke="rgba(0,220,255,0.07)" stroke-width="0.6"/>
+      <text x="32" y="9" text-anchor="middle" font-size="7" font-family="Orbitron,sans-serif" fill="#00ff99" font-weight="700">K</text>
+      <text x="32" y="61" text-anchor="middle" font-size="7" font-family="Orbitron,sans-serif" fill="rgba(200,230,245,0.6)">G</text>
+      <text x="59" y="34" text-anchor="middle" font-size="7" font-family="Orbitron,sans-serif" fill="rgba(200,230,245,0.6)">D</text>
+      <text x="5" y="34" text-anchor="middle" font-size="7" font-family="Orbitron,sans-serif" fill="rgba(200,230,245,0.6)">B</text>
+      <g id="wind-arrow" style="transform-origin:32px 32px;transform:rotate(0deg);transition:transform 0.8s ease;">
+        <line x1="32" y1="32" x2="32" y2="46" stroke="rgba(0,220,255,0.5)" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="32" y1="32" x2="32" y2="13" stroke="#00ff99" stroke-width="2.2" stroke-linecap="round"/>
+        <polygon points="32,8 28,17 36,17" fill="#00ff99"/>
+        <circle cx="32" cy="32" r="3" fill="rgba(0,220,255,0.9)" stroke="rgba(0,220,255,0.4)" stroke-width="1"/>
+      </g>
+    </svg>
+    <span id="wind-dir-label" style="font-family:Orbitron,sans-serif;font-size:15px;color:#00ff99;font-weight:700;letter-spacing:2px;">—</span>
+    <span id="wind-kt-label" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(255,209,102,0.9);">— kt</span>
+  </div>
+</main>
+
+<aside id="right">
+  <div class="panel">
+    <div class="panel-title">▸ Uçuş Telemetrisi</div>
+    <div class="tele-grid">
+      <div class="tele-box"><div class="tele-lbl">İRTİFA</div><div class="tele-val"><span id="t-alt">0.0</span><span class="tele-unit" id="u-alt">km</span></div></div>
+      <div class="tele-box"><div class="tele-lbl">HIZ</div><div class="tele-val"><span id="t-vel">0</span><span class="tele-unit" id="u-vel">km/h</span></div></div>
+      <div class="tele-box"><div class="tele-lbl">YAKIT</div><div class="tele-val"><span id="t-fuel">100</span><span class="tele-unit">%</span></div></div>
+      <div class="tele-box"><div class="tele-lbl">DURUM</div><div class="tele-val" id="t-state" style="font-size:13px;margin-top:3px">BEKLİYOR</div></div>
+      <div class="tele-box"><div class="tele-lbl">G-KUVVETİ</div><div class="tele-val"><span id="t-gforce">0.0</span><span class="tele-unit">g</span></div></div>
+      <div class="tele-box"><div class="tele-lbl">MOTOR BASINCI</div><div class="tele-val"><span id="t-pressure">0</span><span class="tele-unit">bar</span></div></div>
+    </div>
+    <div style="margin-top:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--textdim);margin-bottom:3px;">
+        <span>G-YÜKÜ</span><span id="t-gforce-lbl" style="color:var(--accent2)">0.0 g</span>
+      </div>
+      <div style="background:rgba(0,220,255,0.06);border:1px solid var(--border);border-radius:3px;height:6px;overflow:hidden;">
+        <div id="gforce-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#00ff99,#ffd166,#ff4455);border-radius:3px;transition:width 0.2s,background 0.3s;"></div>
+      </div>
+    </div>
+    <div style="margin-top:8px;">
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--textdim);margin-bottom:3px;">
+        <span>MOTOR BASINCI</span><span id="t-pressure-lbl" style="color:var(--accent)">0 bar</span>
+      </div>
+      <div style="background:rgba(0,220,255,0.06);border:1px solid var(--border);border-radius:3px;height:6px;overflow:hidden;">
+        <div id="pressure-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#00dcff,#00ff99);border-radius:3px;transition:width 0.15s;"></div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="panel" style="text-align: center;">
+    <div class="panel-title">▸ OPTİMAL FIRLATMA KARARI</div>
+    <div class="gauge-container">
+      <svg viewBox="0 0 120 70" class="gauge-svg">
+        <defs>
+          <linearGradient id="gauge-grad-green" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#00dcff" />
+            <stop offset="100%" stop-color="#00ff99" />
+          </linearGradient>
+          <linearGradient id="gauge-grad-red" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#ff4455" />
+            <stop offset="100%" stop-color="#ffaa00" />
+          </linearGradient>
+        </defs>
+        <path d="M 15 60 A 45 45 0 0 1 105 60" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="10" stroke-linecap="round" />
+        <path id="gauge-path" d="M 15 60 A 45 45 0 0 1 105 60" fill="none" stroke="url(#gauge-grad-green)" stroke-width="10" stroke-linecap="round" stroke-dasharray="141.37" stroke-dashoffset="0" />
+        <text x="56" y="55" text-anchor="middle" class="gauge-text" id="gauge-val-text">100</text>
+        <text x="82" y="55" class="gauge-sub">/100</text>
+      </svg>
+    </div>
+    <div id="gauge-karar" style="font-family: var(--orb); font-size: 17px; font-weight: 900; color: var(--accent2); letter-spacing: 2px;">KARAR: GO</div>
+    <div id="risk-summary" style="font-size:10px; font-weight:bold; color:var(--textdim); margin-top:8px; word-wrap:break-word;">TÜM SİSTEMLER NOMİNAL</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">▸ Sistem, Aviyonik & Güvenlik</div>
+    <div class="risk-row"><input type="checkbox" id="range-clear" checked><div class="risk-dot dot-ok" id="dot-range"></div><label for="range-clear" style="cursor:pointer;">Menzil Güvenliği Temiz</label></div>
+    <div class="risk-row"><input type="checkbox" id="telemetry-ok" checked><div class="risk-dot dot-ok" id="dot-tele"></div><label for="telemetry-ok" style="cursor:pointer;">Telemetri Bağlantısı Stabil</label></div>
+    <div class="risk-row"><input type="checkbox" id="pad-ready" checked><div class="risk-dot dot-ok" id="dot-pad"></div><label for="pad-ready" style="cursor:pointer;">Rampa Kilitleri Temiz</label></div>
+    <div class="risk-row"><input type="checkbox" id="tvc-aligned" checked><div class="risk-dot dot-ok" id="dot-tvc"></div><label for="tvc-aligned" style="cursor:pointer;">TVC (Gimbal) Hizalaması OK</label></div>
+    <div class="risk-row"><input type="checkbox" id="imu-calibrated" checked><div class="risk-dot dot-ok" id="dot-imu"></div><label for="imu-calibrated" style="cursor:pointer;">IMU Jiroskop Kalibre Edildi</label></div>
+    <div class="risk-row"><input type="checkbox" id="power-systems" checked><div class="risk-dot dot-ok" id="dot-pwr"></div><label for="power-systems" style="cursor:pointer;">Güç Sistemleri & Batarya OK</label></div>
+    <div class="risk-row"><input type="checkbox" id="avionics-thermal" checked><div class="risk-dot dot-ok" id="dot-thm"></div><label for="avionics-thermal" style="cursor:pointer;">Aviyonik Isıl Dengesi Stabil</label></div>
+    <div class="risk-row"><input type="checkbox" id="hydraulic-ok" checked><div class="risk-dot dot-ok" id="dot-hyd"></div><label for="hydraulic-ok" style="cursor:pointer;">Hidrolik Basınç Yeterli</label></div>
+    <div class="risk-row"><input type="checkbox" id="fts-armed" checked><div class="risk-dot dot-ok" id="dot-fts"></div><label for="fts-armed" style="cursor:pointer;">FTS (Uçuş Sonlandırma) Armed</label></div>
+    <div class="risk-row"><input type="checkbox" id="water-suppression" checked><div class="risk-dot dot-ok" id="dot-h2o"></div><label for="water-suppression" style="cursor:pointer;">Su Baskın Sistemi (Akustik) Hazır</label></div>
+    <div class="risk-row"><input type="checkbox" id="pogo-vibration"><div class="risk-dot dot-ok" id="dot-pogo"></div><label for="pogo-vibration" style="cursor:pointer;">POGO Vibrasyonu Tespit Edildi!</label></div>
+    <div class="risk-row"><input type="checkbox" id="ber-high"><div class="risk-dot dot-ok" id="dot-ber"></div><label for="ber-high" style="cursor:pointer;">BER Sinyal Kayıp Oranı Yüksek!</label></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">▸ Yakıt & İtki Sistemleri</div>
+    <div class="field-row"><span>Doluluk (%)</span><span class="field-val" id="v-fuel">100</span></div>
+    <input type="range" id="fuel-status" min="0" max="100" step="0.5" value="100" oninput="updateFuel(this.value)">
+    
+    <div class="field-row" style="margin-top:8px"><span>LOX Sıcaklık (°C)</span><span class="field-val" id="v-ftemp">-185</span></div>
+    <input type="range" id="fuel-temp" min="-260" max="-100" step="1" value="-185" oninput="updateVal('v-ftemp',this.value,0)">
+    
+    <div class="field-row" style="margin-top:8px"><span>T-0 İtki/Ağırlık Oranı</span><span class="field-val" id="v-twr">1.2</span></div>
+    <input type="range" id="twr" min="0.8" max="1.5" step="0.1" value="1.2" oninput="updateVal('v-twr',this.value,1)">
+    
+    <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;font-size:11px">
+      <div style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="tank-pressure" checked><label for="tank-pressure" style="color:var(--textdim); cursor:pointer;">Tank Basınçları Nominal</label></div>
+      <div style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="mixture-ratio" checked><label for="mixture-ratio" style="color:var(--textdim); cursor:pointer;">Oksitleyici/Yakıt Oranı Stabil</label></div>
+    </div>
+  </div>
+
+  <div class="panel" style="flex:1">
+    <div class="panel-title">▸ Son Görev Logları</div>
+    <div id="log-scroll">
+      <table id="logs-table"><tbody id="log-body"><tr><td colspan="3" style="color:var(--textdim);text-align:center">Log yükleniyor...</td></tr></tbody></table>
+    </div>
+    <button class="btn btn-logs" type="button" style="margin-top:8px;width:100%;font-size:10px" onclick="fetchLogs()">⟳ Logları Yenile</button>
+  </div>
+</aside>
+
+<footer id="footer">
+  <button class="btn btn-go" type="button" id="btn-launch" onclick="doLaunch(event)">🚀 ANALİZ ET VE FIRLATMAYI BAŞLAT</button>
+  <button class="btn btn-cam" type="button" onclick="cycleCamera()">📷 KAMERA</button>
+  <button class="btn btn-reset" type="button" id="btn-reset" onclick="doReset()">↺ SIFIRLA</button>
+  <div id="status-bar">SİSTEM ANALİZİ BEKLENİYOR</div>
+</footer>
+
+<div id="custom-modal" class="modal-overlay">
+  <div class="modal-box" id="modal-box">
+    <div class="modal-title" id="modal-title">UYARI</div>
+    <div class="modal-content" id="modal-content"></div>
+    <button class="modal-btn" id="modal-btn" onclick="hideModal()">ANLAŞILDI</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const originalReload = window.location.reload;
+window.location.reload = function() {
+    const isModalOpen = document.getElementById('custom-modal').classList.contains('show');
+    if (simState !== 'idle' || isModalOpen) { return; }
+    originalReload.call(window.location);
+};
+
+const API = 'http://localhost:5000/api';
+let weatherData = null;
+let envanter    = {};
+let simState    = 'idle';
+let rocketAlt   = 0, rocketVel = 0, fuelSim = 100;
+let orbitAngle  = 0, shakeAmt = 0;
+let totalTime   = 0, particleTimer = 0, flamePhase = 0;
+let pIdx = 0, sIdx = 0;
+let camIndex    = 0;
+
+let modalTimer = null;
+
+function showModal(title, msg, isError = true) {
+  const modal = document.getElementById('custom-modal');
+  const mTitle = document.getElementById('modal-title');
+  const mBox = document.getElementById('modal-box');
+  
+  mTitle.textContent = (isError ? '⚠ ' : '🚀 ') + title;
+  document.getElementById('modal-content').textContent = msg;
+  
+  const color = isError ? 'var(--red)' : 'var(--accent)';
+  const bgColor = isError ? 'rgba(10, 0, 5, 0.88)' : 'rgba(0, 10, 25, 0.88)';
+  
+  mTitle.style.color = color;
+  mTitle.style.borderBottomColor = isError ? 'rgba(255,68,85,0.3)' : 'rgba(0,220,255,0.3)';
+  mBox.style.borderLeftColor = color;
+  mBox.style.borderColor = isError ? 'rgba(255, 68, 85, 0.3)' : 'rgba(0, 220, 255, 0.3)';
+  mBox.style.borderLeft = `4px solid ${color}`;
+  mBox.style.backgroundColor = bgColor;
+  mBox.style.boxShadow = `0 0 20px ${isError ? 'rgba(255,68,85,0.15)' : 'rgba(0,220,255,0.15)'}`;
+  
+  modal.classList.add('show');
+  
+  if(modalTimer) clearTimeout(modalTimer);
+  modalTimer = setTimeout(() => {
+    hideModal();
+  }, 5000);
+}
+
+function hideModal() {
+  document.getElementById('custom-modal').classList.remove('show');
+}
+
+function tickClock() {
+  document.getElementById('clock-time').textContent =
+    new Date().toLocaleString('tr-TR', {hour12:false}).replace(',','');
+}
+setInterval(tickClock, 1000); tickClock();
+
+function updateVal(id, val, dec) {
+  document.getElementById(id).textContent = parseFloat(val).toFixed(dec);
+  updateRiskSummary();
+}
+function updateFuel(val) { updateVal('v-fuel', val, 1); }
+updateFuel(100);
+
+function getRiskIssues() {
+  const issues = [];
+  if (parseFloat(document.getElementById('kp').value) >= 7) issues.push('Kp-Index Fırtınası (GPS Kaybı)');
+  if (parseFloat(document.getElementById('g-scale').value) >= 3) issues.push('G3+ Jeomanyetik Fırtına');
+  if (parseFloat(document.getElementById('s-scale').value) >= 3) issues.push('S3+ Solar Radyasyon (Aviyonik Hasar)');
+  if (parseFloat(document.getElementById('r-scale').value) >= 3) issues.push('R3+ Radyo Kesintisi (Telemetri Kaybı)');
+  if (parseFloat(document.getElementById('lightning').value) < 18) issues.push('Şimşek Menzili (<18km)');
+  if (parseFloat(document.getElementById('last-lightning').value) < 30) issues.push('Son Şimşek <30dk');
+  if (parseFloat(document.getElementById('efield').value) > 1500) issues.push('Elektrik Alanı Çok Yüksek');
+  if (document.getElementById('cumulus').checked) issues.push('Kümülüs Bulut Riski (Yıldırım)');
+  if (!document.getElementById('tec-stable').checked) issues.push('TEC Bozuk (Navigasyon Sapması)');
+  if (document.getElementById('wind-shear').checked) issues.push('Üst Rüzgar Makaslaması (Gövde Kırılması)');
+  const fTemp = parseFloat(document.getElementById('fuel-temp').value);
+  if (parseFloat(document.getElementById('fuel-status').value) < 98) issues.push('Yetersiz Yakıt Seviyesi');
+  if (fTemp > -180 || fTemp < -250) issues.push('Kriyojenik Yakıt Isısı Sınır Dışı');
+  if (parseFloat(document.getElementById('twr').value) <= 1.0) issues.push('İtki Ağırlıktan Zayıf (Kalkamaz)');
+  if (!document.getElementById('tank-pressure').checked) issues.push('Tank Basıncı Kritik Seviyede');
+  if (!document.getElementById('mixture-ratio').checked) issues.push('Motor Karışım Oranı Bozuk (Erime Riski)');
+  if (!document.getElementById('range-clear').checked) issues.push('Menzil İhlali (Bölge Temiz Değil)');
+  if (!document.getElementById('telemetry-ok').checked) issues.push('Yer Telemetri Bağlantısı Kesik');
+  if (!document.getElementById('pad-ready').checked) issues.push('Rampa Kilitleri Açılmadı');
+  if (!document.getElementById('tvc-aligned').checked) issues.push('TVC (Gimbal) Motor Hizalama Hatası');
+  if (!document.getElementById('imu-calibrated').checked) issues.push('IMU Jiroskop Kalibrasyonu Eksik');
+  if (!document.getElementById('power-systems').checked) issues.push('Batarya ve Güç Voltajı Düşük');
+  if (!document.getElementById('avionics-thermal').checked) issues.push('Aviyonik Bilgisayar Isıl Dengesi Bozuk');
+  if (!document.getElementById('hydraulic-ok').checked) issues.push('Gimbal Hidrolik Basıncı Yetersiz');
+  if (!document.getElementById('fts-armed').checked) issues.push('İmha Sistemi (FTS) Kurulmadı');
+  if (!document.getElementById('water-suppression').checked) issues.push('Su Baskın Sistemi (Akustik Koruma) Kapalı');
+  if (document.getElementById('pogo-vibration').checked) issues.push('Kritik POGO Vibrasyonu Saptandı');
+  if (document.getElementById('ber-high').checked) issues.push('Telemetri Bit Hata Oranı (BER) Çok Yüksek');
+  return issues;
+}
+
+function updateGauge() {
+  const issues = getRiskIssues();
+  let score = 100;
+
+  const fuel = parseFloat(document.getElementById('fuel-status').value);
+  if (fuel < 100) score -= (100 - fuel) * 2.5;
+
+  const kp = parseFloat(document.getElementById('kp').value);
+  if (kp > 2) score -= (kp - 2) * 3;
+
+  const twr = parseFloat(document.getElementById('twr').value);
+  if (twr < 1.3) score -= (1.3 - twr) * 50;
+
+  const fTemp = parseFloat(document.getElementById('fuel-temp').value);
+  if (fTemp > -185) score -= (fTemp - (-185)) * 0.8;
+  else if (fTemp < -185) score -= ((-185) - fTemp) * 0.3;
+
+  const lightning = parseFloat(document.getElementById('lightning').value);
+  if (lightning < 30) score -= (30 - lightning) * 1.5;
+
+  const lastL = parseFloat(document.getElementById('last-lightning').value);
+  if (lastL < 45) score -= (45 - lastL) * 1.0;
+
+  const efield = parseFloat(document.getElementById('efield').value);
+  if (efield > 500) score -= (efield - 500) * 0.015;
+
+  const gScale = parseFloat(document.getElementById('g-scale').value);
+  if (gScale > 1) score -= (gScale - 1) * 6;
+  const sScale = parseFloat(document.getElementById('s-scale').value);
+  if (sScale > 1) score -= (sScale - 1) * 6;
+  const rScale = parseFloat(document.getElementById('r-scale').value);
+  if (rScale > 1) score -= (rScale - 1) * 6;
+
+  let boolIssues = 0;
+  if (document.getElementById('cumulus').checked) boolIssues++;
+  if (!document.getElementById('tec-stable').checked) boolIssues++;
+  if (document.getElementById('wind-shear').checked) boolIssues++;
+  if (!document.getElementById('tank-pressure').checked) boolIssues++;
+  if (!document.getElementById('mixture-ratio').checked) boolIssues++;
+  if (!document.getElementById('range-clear').checked) boolIssues++;
+  if (!document.getElementById('telemetry-ok').checked) boolIssues++;
+  if (!document.getElementById('pad-ready').checked) boolIssues++;
+  if (!document.getElementById('tvc-aligned').checked) boolIssues++;
+  if (!document.getElementById('imu-calibrated').checked) boolIssues++;
+  if (!document.getElementById('power-systems').checked) boolIssues++;
+  if (!document.getElementById('avionics-thermal').checked) boolIssues++;
+  if (!document.getElementById('hydraulic-ok').checked) boolIssues++;
+  if (!document.getElementById('fts-armed').checked) boolIssues++;
+  if (!document.getElementById('water-suppression').checked) boolIssues++;
+  if (document.getElementById('pogo-vibration').checked) boolIssues++;
+  if (document.getElementById('ber-high').checked) boolIssues++;
+
+  score -= boolIssues * 15;
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  if (issues.length > 0 && score > 85) {
+      score = 85;
+  }
+
+  const arcLength = 141.37;
+  const offset = arcLength - (arcLength * score / 100);
+  const path = document.getElementById('gauge-path');
+  path.style.strokeDashoffset = offset;
+  document.getElementById('gauge-val-text').textContent = score;
+
+  const kararEl = document.getElementById('gauge-karar');
+  const summaryEl = document.getElementById('risk-summary');
+
+  if (issues.length === 0) {
+    kararEl.textContent = 'KARAR: GO';
+    kararEl.style.color = 'var(--accent2)';
+    path.setAttribute('stroke', 'url(#gauge-grad-green)');
+    summaryEl.textContent = 'TÜM SİSTEMLER NOMİNAL';
+    summaryEl.style.color = 'var(--textdim)';
+  } else {
+    kararEl.textContent = 'KARAR: NO-GO';
+    kararEl.style.color = 'var(--red)';
+    path.setAttribute('stroke', 'url(#gauge-grad-red)');
+    summaryEl.textContent = '⚠ ' + issues.join(' · ');
+    summaryEl.style.color = 'var(--red)';
+  }
+}
+function updateRiskSummary() { updateGauge(); }
+
+const okVars = ['range-clear','telemetry-ok','pad-ready','tvc-aligned','imu-calibrated','power-systems','avionics-thermal','hydraulic-ok','fts-armed','water-suppression'];
+const okMap = {'range-clear':'dot-range','telemetry-ok':'dot-tele','pad-ready':'dot-pad','tvc-aligned':'dot-tvc','imu-calibrated':'dot-imu','power-systems':'dot-pwr','avionics-thermal':'dot-thm','hydraulic-ok':'dot-hyd','fts-armed':'dot-fts','water-suppression':'dot-h2o'};
+okVars.forEach(id => {
+  document.getElementById(id).addEventListener('change', function() {
+    document.getElementById(okMap[id]).className = 'risk-dot '+(this.checked?'dot-ok':'dot-crit');
+    updateRiskSummary();
+  });
+});
+const critVars = ['pogo-vibration','ber-high'];
+const critMap = {'pogo-vibration':'dot-pogo','ber-high':'dot-ber'};
+critVars.forEach(id => {
+  document.getElementById(id).addEventListener('change', function() {
+    document.getElementById(critMap[id]).className = 'risk-dot '+(this.checked?'dot-crit':'dot-ok');
+    updateRiskSummary();
+  });
+});
+['cumulus', 'tec-stable', 'wind-shear', 'tank-pressure', 'mixture-ratio'].forEach(id => {
+  document.getElementById(id).addEventListener('change', updateRiskSummary);
+});
+
+async function loadEnvanter() {
+  try {
+    const res = await fetch(`${API}/envanter`); const data = await res.json(); envanter = data.envanter;
+  } catch(e) {
+    envanter = {"Roket Test Ucusu":{"SIMAV-1 (Sonda Roketi)":30,"SIMSEK-1 (Yorunge Alti)":35,"TUA-R (Agir Firlatma)":45},"Uzay Araci (Gorev Yuklu)":{"TURKSAT-6A (Haberlesme)":40,"IMECE (Gozlem)":35,"AY-1 (Derin Uzay)":45}};
+  }
+  const katSel = document.getElementById('sel-kategori');
+  katSel.innerHTML = Object.keys(envanter).map(k=>`<option>${k}</option>`).join('');
+  katSel.addEventListener('change', updateModels); updateModels();
+}
+function updateModels() {
+  const kat = document.getElementById('sel-kategori').value;
+  document.getElementById('sel-model').innerHTML = Object.keys(envanter[kat]||{}).map(m=>`<option>${m}</option>`).join('');
+}
+async function loadSites() {
+  let sites = ["Kismaayo (Somali - TUA)","Kennedy Space Center (ABD)","Kourou (Fransiz Guyanasi)","Hambantota (Sri Lanka)"];
+  try { const res=await fetch(`${API}/sites`); const d=await res.json(); sites=d.sites; } catch(e) {}
+  const sel = document.getElementById('sel-site');
+  sel.innerHTML = sites.map(s=>`<option>${s}</option>`).join('');
+  sel.addEventListener('change', fetchWeather); fetchWeather();
+}
+async function fetchSpaceWeather() {
+    try {
+        const res = await fetch(`${API}/space_weather`);
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('kp').value = data.kp_index;
+            document.getElementById('v-kp').textContent = parseFloat(data.kp_index).toFixed(1);
+            document.getElementById('g-scale').value = data.g_scale || 1;
+            document.getElementById('v-gscale').textContent = data.g_scale || 1;
+            document.getElementById('s-scale').value = data.s_scale || 1;
+            document.getElementById('v-sscale').textContent = data.s_scale || 1;
+            document.getElementById('r-scale').value = data.r_scale || 1;
+            document.getElementById('v-rscale').textContent = data.r_scale || 1;
+            updateRiskSummary();
+        }
+    } catch(e) {}
+}
+async function fetchWeather() {
+  const site = document.getElementById('sel-site').value;
+  setStatus('Hava verisi alınıyor...','rgba(0,220,255,0.1)');
+  try {
+    const res = await fetch(`${API}/weather?site=${encodeURIComponent(site)}`);
+    const data = await res.json(); if(data.error) throw new Error(data.error);
+    weatherData = data;
+    document.getElementById('wx-desc').textContent   = data.weather.description;
+    document.getElementById('wx-wind').textContent   = data.weather.wind_kt;
+    document.getElementById('wx-temp').textContent   = data.weather.temp_c;
+    document.getElementById('wx-vis').textContent    = data.weather.visibility_km;
+    document.getElementById('wx-clouds').textContent = data.weather.clouds_pct+'%';
+    document.getElementById('wx-rakim').textContent  = data.rakim;
+    document.getElementById('geo-chip').textContent  = `Ekvator Hız Desteği: ${data.geo_speed} km/sa`;
+    setStatus('Hava verisi güncellendi — Analiz için hazır.','rgba(0,60,30,0.7)');
+    updateRiskSummary(); if(data.theme) applyTheme(data.theme);
+    const wd = data.weather;
+    const deg = (wd.wind_deg !== undefined && wd.wind_deg !== null) ? wd.wind_deg : 0;
+    const kt  = wd.wind_kt || 0;
+    updateWindVane(deg, kt);
+  } catch(e) {
+    setStatus('API HATASI! Hava verisi alınamadı.','rgba(80,0,0,0.7)');
+  }
+}
+
+async function doLaunch(e) {
+  if(e) e.preventDefault();
+  if(simState !== 'idle') return;
+  simState = 'analyzing';
+  document.getElementById('btn-launch').disabled = true;
+  const payload = {
+    site: document.getElementById('sel-site').value,
+    kategori: document.getElementById('sel-kategori').value,
+    model: document.getElementById('sel-model').value,
+    weather: weatherData ? weatherData.weather : {},
+    kp_index: parseFloat(document.getElementById('kp').value),
+    geomagnetic_g_scale: parseInt(document.getElementById('g-scale').value),
+    solar_rad_s_scale: parseInt(document.getElementById('s-scale').value),
+    radio_blackout_r_scale: parseInt(document.getElementById('r-scale').value),
+    lightning_dist: parseFloat(document.getElementById('lightning').value),
+    last_lightning: parseInt(document.getElementById('last-lightning').value),
+    electric_field: parseFloat(document.getElementById('efield').value),
+    cumulus_risk: document.getElementById('cumulus').checked,
+    tec_stable: document.getElementById('tec-stable').checked,
+    wind_shear_critical: document.getElementById('wind-shear').checked,
+    fuel_status: parseFloat(document.getElementById('fuel-status').value),
+    fuel_temp: parseFloat(document.getElementById('fuel-temp').value),
+    tank_pressure_ok: document.getElementById('tank-pressure').checked,
+    mixture_ratio_ok: document.getElementById('mixture-ratio').checked,
+    thrust_weight_ratio: parseFloat(document.getElementById('twr').value),
+    range_clear: document.getElementById('range-clear').checked,
+    telemetry_ok: document.getElementById('telemetry-ok').checked,
+    pad_ready: document.getElementById('pad-ready').checked,
+    tvc_aligned: document.getElementById('tvc-aligned').checked,
+    imu_calibrated: document.getElementById('imu-calibrated').checked,
+    power_systems_ok: document.getElementById('power-systems').checked,
+    avionics_thermal_ok: document.getElementById('avionics-thermal').checked,
+    hydraulic_pressure_ok: document.getElementById('hydraulic-ok').checked,
+    fts_armed: document.getElementById('fts-armed').checked,
+    water_suppression_ok: document.getElementById('water-suppression').checked,
+    pogo_vibration_critical: document.getElementById('pogo-vibration').checked,
+    ber_high: document.getElementById('ber-high').checked
+  };
+  try {
+    const res = await fetch(`${API}/analyze`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    const result = await res.json();
+    if(!result.go) {
+      simState = 'idle'; // İptal anında tekrar idle duruma dön, butonu kitleme
+      document.getElementById('btn-launch').disabled = false;
+      showModal('FIRLATMA İPTAL (SUNUCU)', result.errors.map(e => '• ' + e).join('\n'), true);
+      setStatus(`İPTAL EDİLDİ: ${result.errors[0] || 'Bilinmeyen hata'}`, 'rgba(120,0,0,0.7)', 'var(--red)');
+      fetchLogs(); return;
+    }
+    startCountdown(); fetchLogs();
+  } catch(e) {
+    const localIssues = getRiskIssues();
+    if (localIssues.length > 0) {
+      simState = 'idle'; // İptal anında tekrar idle duruma dön, butonu kitleme
+      document.getElementById('btn-launch').disabled = false;
+      showModal('FIRLATMA İPTAL (SİSTEM)', localIssues.map(e => '• ' + e).join('\n'), true);
+      setStatus('İPTAL: Kritik Uçuş Engeli', 'rgba(120,0,0,0.7)', 'var(--red)'); return;
+    }
+    setStatus('Backend offline. Lokal analiz OK. Fırlatılıyor...', 'rgba(80,60,0,0.7)', 'var(--yellow)');
+    setTimeout(() => { startCountdown(); }, 800);
+  }
+}
+
+let currentLogs = [];
+async function fetchLogs() {
+  try {
+    const res = await fetch(`${API}/logs`);
+    const data = await res.json();
+    currentLogs = data.logs;
+    const tbody = document.getElementById('log-body');
+    if(!data.logs.length) { tbody.innerHTML='<tr><td colspan="3" style="color:var(--textdim);text-align:center">Henüz log yok</td></tr>'; return; }
+    tbody.innerHTML = data.logs.slice(0,8).map((l, idx) => `
+      <tr onclick="showLogDetail(${idx})" title="Detayları görmek için tıkla">
+        <td>${l['Tarih']||''}</td>
+        <td class="${l['Durum']==='GO'?'log-go':'log-scrub'}">${l['Durum']||''}</td>
+        <td>${(l['Model']||'').substring(0,14)}</td>
+      </tr>
+    `).join('');
+  } catch(e) {
+    document.getElementById('log-body').innerHTML='<tr><td colspan="3" style="color:var(--textdim)">Backend offline</td></tr>';
+  }
+}
+
+function showLogDetail(idx) {
+  const l = currentLogs[idx]; if(!l) return;
+  const detayMesaji = `📅 Tarih: ${l['Tarih']}\n📍 Liman: ${l['Liman']}\n🚀 Model: ${l['Model']}\n🚦 Durum: ${l['Durum']}\n\n📋 NEDENLER / DETAY:\n` +
+    l['Nedenler'].split(' | ').map(n => '• ' + n).join('\n');
+  showModal('GÖREV LOG DETAYI', detayMesaji, l['Durum'] !== 'GO');
+}
+
+function doReset() {
+  if (cdInterval) { clearInterval(cdInterval); cdInterval = null; }
+  simState   = 'idle';
+  rocketAlt  = 0; rocketVel  = 0;
+  fuelSim    = parseFloat(document.getElementById('fuel-status').value) || 100;
+  orbitAngle = 0; shakeAmt   = 0; particleTimer = 0;
+  separationParticleTimer = 0; sepHudTimer = 0;
+
+  if(isSeparated) {
+    scene.remove(stage1Group);
+    rocketGroup.add(stage1Group);
+  }
+  isSeparated = false;
+  stage1Landed = false;
+  stage1WorldX = 0; stage1WorldY = 0; stage1WorldZ = 0;
+  stage1VelX = 0; stage1VelY = 0; stage1VelZ = 0;
+  stage1RotVelX = 0; stage1RotVelZ = 0;
+
+  rocketGroup.position.set(-8, 0.35, 0);
+  rocketGroup.rotation.set(0, 0, 0);
+
+  stage1Group.position.set(0, 0, 0);
+  stage1Group.rotation.set(0, 0, 0);
+  for(let i=0;i<4;i++){
+    legGroups[i].visible = true;
+  }
+  sepRingMesh.visible = false;
+
+  flames.forEach((f,i) => { f.visible=false; f.position.set(0, -(1.5+i*0.5), 0); });
+  engineLight.visible=false; engineLight.position.set(0,0,0);
+
+  document.getElementById('cd-overlay').classList.remove('show');
+  document.getElementById('sep-hud').classList.remove('show');
+  hideModal();
+
+  for(let i=0;i<PC;i++){pPos[i*3+1]=-100;pVel[i].life=0;}
+  for(let i=0;i<SC;i++){sPos[i*3+1]=-100;sVel[i].life=0;}
+  for(let i=0;i<SEPC;i++){sepPos[i*3+1]=-100;sepVel[i].life=0;}
+  pGeo.attributes.position.needsUpdate=true;
+  sGeo.attributes.position.needsUpdate=true;
+  sepGeo.attributes.position.needsUpdate=true;
+
+  camIndex = 0; activeCamera = camMain;
+  camTheta = -Math.PI * 0.15; camPhi = 0.78; camDist = 28;
+  updateMainCam();
+
+  document.getElementById('t-alt').textContent  = "0.0";
+  document.getElementById('t-vel').textContent  = "0";
+  document.getElementById('t-fuel').textContent = Math.round(fuelSim);
+  document.getElementById('t-state').textContent = "BEKLİYOR";
+  document.getElementById('btn-launch').disabled = false;
+  setStatus('SİSTEM SIFIRLANDI — YENİ GÖREV İÇİN HAZIR', 'rgba(0,60,30,0.7)', 'var(--accent2)');
+}
+
+function setStatus(text, bg='rgba(0,220,255,0.06)', color='var(--accent)') {
+  const el=document.getElementById('status-bar'); el.textContent=text; el.style.background=bg; el.style.color=color;
+}
+
+let cdVal = 5, cdInterval = null;
+function startCountdown() {
+  simState = 'countdown'; cdVal = 5;
+  const overlay = document.getElementById('cd-overlay');
+  const numEl   = document.getElementById('cd-num');
+  numEl.textContent = cdVal; overlay.classList.add('show');
+  if (cdInterval) clearInterval(cdInterval);
+  cdInterval = setInterval(() => {
+    cdVal--;
+    if (cdVal > 0) {
+      numEl.textContent = cdVal;
+      setStatus(`T-MINUS ${cdVal} SANİYE`, 'rgba(80,50,0,0.7)', 'var(--yellow)');
+      document.getElementById('t-state').textContent = 'GERİ SAYIM';
+    } else {
+      clearInterval(cdInterval); cdInterval = null;
+      numEl.textContent = 'ATEŞ!';
+      setStatus('🔥 İGNİSYON — KALKIŞ!', 'rgba(100,20,0,0.7)', '#ff8855');
+      setTimeout(() => { overlay.classList.remove('show'); }, 1200);
+      simState = 'launching';
+      fuelSim  = parseFloat(document.getElementById('fuel-status').value);
+      shakeAmt = 8;
+      flames.forEach(f => f.visible = true);
+      engineLight.visible = true;
+    }
+  }, 1000);
+  setStatus(`T-MINUS ${cdVal} SANİYE`, 'rgba(80,50,0,0.7)', 'var(--yellow)');
+  document.getElementById('t-state').textContent = 'GERİ SAYIM';
+}
+
+window.addEventListener("beforeunload", (event) => {
+  const isModalOpen = document.getElementById('custom-modal').classList.contains('show');
+  if (simState !== 'idle' && simState !== 'orbit' || isModalOpen) {
+    event.preventDefault(); event.returnValue = "Görev devam ediyor!"; return event.returnValue;
+  }
+});
+
+// ── THREE.JS ──
+const canvas   = document.getElementById('three-canvas');
+const simEl    = document.getElementById('sim');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setClearColor(0x0a1628);
+
+function resizeRenderer() {
+  const w=simEl.clientWidth, h=simEl.clientHeight;
+  renderer.setSize(w,h,false);
+  cameras.forEach(c=>{c.aspect=w/h;c.updateProjectionMatrix();});
+}
+window.addEventListener('resize', resizeRenderer);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x1a2a45, 0.015);
+
+const cameras = [];
+let camTheta = -Math.PI * 0.15, camPhi = 0.78, camDist = 28;
+const camTarget = new THREE.Vector3(-8, 12, 0);
+const camMain   = new THREE.PerspectiveCamera(45,1,0.1,600); cameras.push(camMain);
+const camSide   = new THREE.PerspectiveCamera(50,1,0.1,600); cameras.push(camSide);
+const camTop    = new THREE.PerspectiveCamera(55,1,0.1,600); cameras.push(camTop);
+const camFollow = new THREE.PerspectiveCamera(60,1,0.1,600); cameras.push(camFollow);
+let activeCamera = camMain;
+
+function getRocketWorldPos() { return rocketGroup.position; }
+function updateMainCam() {
+  const rp = getRocketWorldPos();
+  camTarget.set(rp.x, rp.y + 11, rp.z);
+  camMain.position.set(camTarget.x + camDist*Math.sin(camPhi)*Math.sin(camTheta), camTarget.y + camDist*Math.cos(camPhi), camTarget.z + camDist*Math.sin(camPhi)*Math.cos(camTheta));
+  camMain.lookAt(camTarget);
+}
+function updateSideCam() { const rp=getRocketWorldPos(); camSide.position.set(rp.x-5,rp.y+14,30); camSide.lookAt(rp.x,rp.y+8,rp.z); }
+function updateTopCam()  { const rp=getRocketWorldPos(); camTop.position.set(rp.x,rp.y+55,rp.z+4); camTop.lookAt(rp.x,rp.y,rp.z); }
+function updateFollowCam(){ const rp=getRocketWorldPos(); camFollow.position.set(rp.x,rp.y+10,rp.z+25); camFollow.lookAt(rp.x,rp.y+8,rp.z); }
+function cycleCamera() { camIndex=(camIndex+1)%cameras.length; activeCamera=cameras[camIndex]; }
+
+let isDrag=false, lx=0, ly=0;
+canvas.addEventListener('mousedown', e=>{isDrag=true;lx=e.clientX;ly=e.clientY;});
+canvas.addEventListener('mouseup', ()=>isDrag=false);
+canvas.addEventListener('mousemove', e=>{if(!isDrag||camIndex!==0)return;camTheta-=(e.clientX-lx)*0.005;camPhi=Math.max(0.2,Math.min(1.3,camPhi-(e.clientY-ly)*0.005));lx=e.clientX;ly=e.clientY;updateMainCam();});
+canvas.addEventListener('wheel', e=>{if(camIndex!==0)return;camDist=Math.max(15,Math.min(80,camDist+e.deltaY*0.05));updateMainCam();},{passive:true});
+canvas.addEventListener('touchstart', e=>{isDrag=true;lx=e.touches[0].clientX;ly=e.touches[0].clientY;});
+canvas.addEventListener('touchend', ()=>isDrag=false);
+canvas.addEventListener('touchmove', e=>{if(!isDrag||camIndex!==0)return;camTheta-=(e.touches[0].clientX-lx)*0.005;camPhi=Math.max(0.2,Math.min(1.3,camPhi-(e.touches[0].clientY-ly)*0.005));lx=e.touches[0].clientX;ly=e.touches[0].clientY;updateMainCam();});
+
+let sunAngle = 0.35;
+let targetSunAngle = 0.35;
+let currentTheme = 'gece';
+
+const skyUniforms = {
+  uSunDir:      { value: new THREE.Vector3() },
+  uSunColor:    { value: new THREE.Color(1.0, 0.95, 0.8) },
+  uSkyColor:    { value: new THREE.Color(0.18, 0.48, 0.82) },
+  uHorizonColor:{ value: new THREE.Color(0.7, 0.85, 1.0) },
+  uGroundColor: { value: new THREE.Color(0.08, 0.14, 0.22) },
+  uSunSize:     { value: 0.998 },
+  uNightBlend:  { value: 0.0 },
+};
+
+const skyMat = new THREE.ShaderMaterial({
+  uniforms: skyUniforms,
+  vertexShader: `
+    varying vec3 vWorldPos;
+    void main(){
+      vWorldPos = (modelMatrix * vec4(position,1.0)).xyz;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform vec3  uSunDir;
+    uniform vec3  uSunColor;
+    uniform vec3  uSkyColor;
+    uniform vec3  uHorizonColor;
+    uniform vec3  uGroundColor;
+    uniform float uSunSize;
+    uniform float uNightBlend;
+    varying vec3  vWorldPos;
+
+    float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+
+    void main(){
+      vec3 dir = normalize(vWorldPos);
+      float y  = dir.y;
+
+      float horizon = exp(-abs(y)*3.5);
+      float zenith  = clamp(y, 0.0, 1.0);
+      vec3 daysky   = mix(uHorizonColor, uSkyColor, pow(zenith, 0.5));
+      daysky        = mix(daysky, uHorizonColor, horizon*0.6);
+
+      float sunDot  = dot(dir, normalize(uSunDir));
+      float sunDisc = smoothstep(uSunSize, uSunSize + 0.001, sunDot);
+      float corona  = pow(max(0.0, sunDot), 180.0) * 0.6;
+      vec3  sunCol  = uSunColor * (sunDisc * 3.0 + corona);
+
+      float sunHoriz = pow(max(0.0, dot(vec3(dir.x,0.0,dir.z), normalize(vec3(uSunDir.x,0.0,uSunDir.z)))), 4.0);
+      float elevLow  = clamp(1.0 - abs(y)*4.0, 0.0, 1.0);
+      vec3  scatter  = mix(vec3(0.0), vec3(1.0, 0.55, 0.15), sunHoriz * elevLow * 0.9 * (1.0 - uNightBlend));
+
+      vec3 nightSky = vec3(0.005, 0.008, 0.018) + vec3(0.0, 0.0, 0.03) * clamp(y,0.0,1.0);
+      vec2 starUV   = vec2(atan(dir.z, dir.x), acos(dir.y)) * 6.0;
+      float star    = step(0.996, hash(floor(starUV * 80.0)));
+      float twinkle = sin(hash(floor(starUV*80.0))*100.0 + float(int(uNightBlend*10.0))) * 0.5 + 0.5;
+      nightSky     += star * twinkle * 0.9 * clamp(y*2.0,0.0,1.0);
+      vec3 moonDir  = normalize(vec3(-0.6, 0.7, 0.3));
+      float moonD   = dot(dir, moonDir);
+      float moonDisc= smoothstep(0.9985, 0.9990, moonD);
+      nightSky     += vec3(0.96, 0.94, 0.82) * moonDisc * 2.0;
+
+      vec3 belowHorizon = mix(uGroundColor, vec3(0.05,0.09,0.05), clamp(-y*3.0,0.0,1.0));
+
+      vec3 finalDay   = daysky + sunCol + scatter;
+      vec3 finalSky   = mix(finalDay, nightSky, uNightBlend);
+      vec3 finalColor = y > 0.0 ? finalSky : belowHorizon;
+
+      gl_FragColor = vec4(finalColor, 1.0);
+    }
+  `,
+  side: THREE.BackSide,
+  depthWrite: false,
+});
+
+const skySphere = new THREE.Mesh(new THREE.SphereGeometry(380, 48, 24), skyMat);
+scene.add(skySphere);
+
+const sunSpriteMat = new THREE.MeshBasicMaterial({
+  color: 0xfffde0,
+  transparent: true,
+  opacity: 0.95,
+  depthWrite: false,
+});
+const sunSprite = new THREE.Mesh(new THREE.SphereGeometry(4.5, 16, 16), sunSpriteMat);
+scene.add(sunSprite);
+
+const cloudGroup = new THREE.Group();
+
+function makeCloud(x, y, z, sc, opacity=0.82) {
+  const g = new THREE.Group();
+  const cmat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: opacity,
+    roughness: 1.0,
+    metalness: 0,
+    depthWrite: false,
+  });
+  const puffs = [
+    [0,0,0,      2.2,0.7,1.6],
+    [1.8,0.3,0,  1.7,0.6,1.2],
+    [-1.7,0.2,0, 1.5,0.55,1.1],
+    [0.6,0.6,0,  1.4,0.5,1.0],
+    [2.8,-0.1,0.4,1.2,0.45,0.9],
+    [-2.6,0.0,-0.3,1.1,0.4,0.8],
+    [0,-0.2,1.2, 1.8,0.4,0.9],
+    [0,-0.2,-1.1,1.6,0.4,0.85],
+  ];
+  puffs.forEach(([px,py,pz,sx,sy,sz])=>{
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1,10,7), cmat.clone());
+    m.scale.set(sx,sy,sz);
+    m.position.set(px,py,pz);
+    g.add(m);
+  });
+  g.scale.setScalar(sc);
+  g.position.set(x,y,z);
+  g.rotation.y = Math.random() * Math.PI * 2;
+  return g;
+}
+
+const lowClouds = [
+  [-20,22,15, 4.5],  [15,24,-18, 5.0],  [-40,20,5,  3.8],
+  [25,21,30,  4.2],  [-10,25,-35,4.8],  [50,23,-10, 5.5],
+  [-55,22,25, 4.0],  [35,20,-40, 3.6],  [-30,26,50, 5.2],
+  [10,23,55,  4.4],  [-60,24,-20,4.6],  [60,22,20,  5.0],
+];
+const highClouds = [
+  [-80,55,30, 8.0, 0.3],  [60,58,-50, 9.0, 0.25],
+  [-40,60,80, 7.5, 0.28], [90,56,10,  8.5, 0.22],
+  [20,62,-80, 7.0, 0.3],
+];
+
+[...lowClouds, ...highClouds].forEach(args => {
+  const c = makeCloud(...args);
+  cloudGroup.add(c);
+});
+scene.add(cloudGroup);
+
+const ambientLight = new THREE.AmbientLight(0x8ab4d4, 1.1);
+scene.add(ambientLight);
+
+const sun = new THREE.DirectionalLight(0xfff5e0, 2.2);
+sun.position.set(30, 50, 20);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left   = -60; sun.shadow.camera.right = 60;
+sun.shadow.camera.top    =  60; sun.shadow.camera.bottom = -60;
+sun.shadow.camera.far    = 200; sun.shadow.bias = -0.001;
+scene.add(sun);
+
+const fillLight = new THREE.DirectionalLight(0x4488cc, 0.5);
+fillLight.position.set(-20, 10, -10);
+scene.add(fillLight);
+
+const flood1 = new THREE.PointLight(0xffeedd, 0.8, 35); flood1.position.set(-3,  8,  4); scene.add(flood1);
+const flood2 = new THREE.PointLight(0xffeedd, 0.8, 35); flood2.position.set(-13, 8, -4); scene.add(flood2);
+const flood3 = new THREE.PointLight(0x88aaff, 0.4, 50); flood3.position.set(5,   4,  5); scene.add(flood3);
+
+function updateSkyUniforms() {
+  const sx = Math.sin(sunAngle) * 0.6;
+  const sy = Math.cos(sunAngle);
+  const sz = Math.sin(sunAngle) * 0.3;
+  const sunDir = new THREE.Vector3(sx, sy, sz).normalize();
+  skyUniforms.uSunDir.value.copy(sunDir);
+  sunSprite.position.copy(sunDir.clone().multiplyScalar(350));
+
+  const night = clamp01((-sy + 0.1) * 3.0);
+  skyUniforms.uNightBlend.value = night;
+
+  if(sy > 0.3){
+    skyUniforms.uSkyColor.value.setRGB(0.18, 0.48, 0.82);
+    skyUniforms.uHorizonColor.value.setRGB(0.65, 0.82, 1.0);
+    skyUniforms.uSunColor.value.setRGB(1.0, 0.97, 0.85);
+    sun.color.setHex(0xfff5e0); sun.intensity = 2.2;
+    ambientLight.color.setHex(0x8ab4d4); ambientLight.intensity = 1.1;
+    scene.fog = new THREE.FogExp2(0x8ab4d4, 0.006);
+    renderer.setClearColor(0x4a9ad4);
+    sunSpriteMat.color.setHex(0xfffde0); sunSpriteMat.opacity = 0.95;
+    flood1.intensity = 0.4; flood2.intensity = 0.4;
+  } else if(sy > -0.1){
+    const t = (0.3 - sy) / 0.4;
+    skyUniforms.uSkyColor.value.setRGB(0.1+t*0.05, 0.2+t*0.05, 0.55-t*0.3);
+    skyUniforms.uHorizonColor.value.setRGB(0.9-t*0.1, 0.55-t*0.2, 0.25-t*0.1);
+    skyUniforms.uSunColor.value.setRGB(1.0, 0.6-t*0.3, 0.15);
+    sun.color.setRGB(1.0, 0.5, 0.15); sun.intensity = 1.0 - t*0.8;
+    ambientLight.color.setRGB(0.4, 0.22, 0.18); ambientLight.intensity = 0.5 - t*0.2;
+    scene.fog = new THREE.FogExp2(0x8a3020, 0.01);
+    renderer.setClearColor(0x8a3020);
+    sunSpriteMat.color.setHex(0xff8822); sunSpriteMat.opacity = 0.6 - t*0.4;
+    flood1.intensity = 0.8 + t; flood2.intensity = 0.8 + t;
+  } else {
+    skyUniforms.uSkyColor.value.setRGB(0.01, 0.015, 0.04);
+    skyUniforms.uHorizonColor.value.setRGB(0.04, 0.06, 0.12);
+    skyUniforms.uSunColor.value.setRGB(0,0,0);
+    sun.intensity = 0.05;
+    ambientLight.color.setHex(0x112233); ambientLight.intensity = 0.3;
+    scene.fog = new THREE.FogExp2(0x050a14, 0.014);
+    renderer.setClearColor(0x020408);
+    sunSpriteMat.opacity = 0.0;
+    flood1.intensity = 2.8; flood2.intensity = 2.8; flood3.intensity = 1.5;
+  }
+
+  cloudGroup.children.forEach((c,ci) => {
+    const isHigh = ci >= lowClouds.length;
+    c.children.forEach(m => {
+      if(sy > 0.2){
+        m.material.color.setRGB(1.0, 1.0, 1.0);
+        m.material.opacity = isHigh ? 0.25 : 0.80;
+      } else if(sy > -0.05){
+        const t = (0.2-sy)/0.25;
+        m.material.color.setRGB(1.0, 0.7-t*0.3, 0.4-t*0.2);
+        m.material.opacity = isHigh ? 0.15 : 0.55;
+      } else {
+        m.material.color.setRGB(0.15, 0.18, 0.25);
+        m.material.opacity = isHigh ? 0.08 : 0.35;
+      }
+    });
+  });
+}
+
+function clamp01(v){ return Math.max(0, Math.min(1, v)); }
+
+function applyTheme(theme) {
+  currentTheme = theme;
+  if(theme === 'gunduz')  targetSunAngle = 0.3;
+  else if(theme === 'aksam') targetSunAngle = 1.45;
+  else targetSunAngle = 2.2;
+  sunAngle = targetSunAngle;
+  updateSkyUniforms();
+}
+
+applyTheme('gece');
+
+const M  =(c,r=0.8,m=0)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});
+const bx =(w,h,d,mat,rx=0,ry=0,rz=0,cs=true,rs=true)=>{const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);mesh.castShadow=cs;mesh.receiveShadow=rs;mesh.rotation.set(rx,ry,rz);return mesh;};
+const cy =(rt,rb,h,s,mat)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,s),mat);m.castShadow=true;m.receiveShadow=true;return m;};
+const sp =(r,s,mat)=>{const m=new THREE.Mesh(new THREE.SphereGeometry(r,s,s),mat);m.castShadow=true;return m;};
+const add=o=>scene.add(o);
+
+function makeGroundTex(w, h, seed) {
+  const c = document.createElement('canvas'); c.width=w; c.height=h;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle='#5a7340'; ctx.fillRect(0,0,w,h);
+  const rng = (s)=>{ s=Math.sin(s*127.1+311.7)*43758.5453; return s-Math.floor(s); };
+  for(let i=0;i<1200;i++){
+    const x=rng(i+seed)*w, y=rng(i*1.7+seed)*h;
+    const r=2+rng(i*3.1)*8;
+    const bright=rng(i*2.3+seed);
+    ctx.fillStyle=`rgba(${bright>0.7?100:bright>0.4?70:40},${bright>0.7?110:bright>0.4?95:60},${bright>0.6?30:20},0.25)`;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  }
+  for(let i=0;i<400;i++){
+    const x=rng(i*5.1+seed)*w, y=rng(i*3.7+seed)*h;
+    ctx.strokeStyle=`rgba(80,110,30,0.15)`; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+rng(i*7)*6-3,y-rng(i*9)*8); ctx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+const groundTex = makeGroundTex(512,512,1);
+groundTex.wrapS=groundTex.wrapT=THREE.RepeatWrapping; groundTex.repeat.set(12,9);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(300,220),new THREE.MeshStandardMaterial({map:groundTex,roughness:0.95,metalness:0}));
+ground.rotation.x=-Math.PI/2; ground.position.set(0,-0.01,10); ground.receiveShadow=true; add(ground);
+
+function makeTarmacTex(){
+  const c=document.createElement('canvas'); c.width=256; c.height=256;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#2e2e2c'; ctx.fillRect(0,0,256,256);
+  ctx.strokeStyle='rgba(50,50,48,0.9)'; ctx.lineWidth=2;
+  for(let x=0;x<256;x+=32){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,256); ctx.stroke(); }
+  for(let y=0;y<256;y+=32){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(256,y); ctx.stroke(); }
+  for(let i=0;i<2000;i++){
+    const gx=Math.random()*256, gy=Math.random()*256;
+    ctx.fillStyle=`rgba(${60+Math.random()*20},${60+Math.random()*20},${58+Math.random()*15},0.12)`;
+    ctx.fillRect(gx,gy,1+Math.random()*2,1);
+  }
+  return new THREE.CanvasTexture(c);
+}
+const tarmacTex=makeTarmacTex();
+tarmacTex.wrapS=tarmacTex.wrapT=THREE.RepeatWrapping; tarmacTex.repeat.set(5,2);
+
+const tarmac1=new THREE.Mesh(new THREE.BoxGeometry(80,0.05,8),new THREE.MeshStandardMaterial({map:tarmacTex,roughness:0.9,metalness:0}));
+tarmac1.receiveShadow=true; tarmac1.position.set(-5,0.02,0); add(tarmac1);
+const tarmac2=new THREE.Mesh(new THREE.BoxGeometry(8,0.05,30),new THREE.MeshStandardMaterial({map:tarmacTex,roughness:0.9,metalness:0}));
+tarmac2.receiveShadow=true; tarmac2.position.set(-8,0.02,-10); add(tarmac2);
+const tarmac3=new THREE.Mesh(new THREE.BoxGeometry(8,0.05,25),new THREE.MeshStandardMaterial({map:tarmacTex,roughness:0.9,metalness:0}));
+tarmac3.receiveShadow=true; tarmac3.position.set(15,0.02,-5); add(tarmac3);
+for(let i=-18;i<=18;i+=3.5){const s=bx(1.5,0.06,0.22,M(0xeecc00,0.6),0,0,0,false,false);s.position.set(i,0.03,0);add(s);}
+
+const farTerrain1=new THREE.Mesh(new THREE.PlaneGeometry(400,80),new THREE.MeshStandardMaterial({color:0x4a6a30,roughness:1.0}));
+farTerrain1.rotation.x=-Math.PI/2; farTerrain1.position.set(0,0,110); add(farTerrain1);
+const farTerrain2=new THREE.Mesh(new THREE.PlaneGeometry(400,80),new THREE.MeshStandardMaterial({color:0x3d5828,roughness:1.0}));
+farTerrain2.rotation.x=-Math.PI/2; farTerrain2.position.set(0,0,-110); add(farTerrain2);
+[[80,2,-85],[50,3,-90],[30,2.5,-88],[10,1.8,-86],[-30,2,-87],[-70,3,-89]].forEach(([x,h,z])=>{
+  const hill=new THREE.Mesh(new THREE.SphereGeometry(h*4+5,10,6),new THREE.MeshStandardMaterial({color:0x3a5520,roughness:1}));
+  hill.scale.y=0.3; hill.position.set(x,h*0.3*0.3,z); add(hill);
+});
+[[80,2,85],[50,3,90],[20,2.5,88],[-20,1.8,86],[-60,2.2,87]].forEach(([x,h,z])=>{
+  const hill=new THREE.Mesh(new THREE.SphereGeometry(h*4+5,10,6),new THREE.MeshStandardMaterial({color:0x3a5520,roughness:1}));
+  hill.scale.y=0.3; hill.position.set(x,h*0.3*0.3,z); add(hill);
+});
+
+const pad=bx(16,0.4,16,M(0x9a9a90,0.85),0,0,0,false,true); pad.position.set(-8,0.2,0); add(pad);
+const padMark1=bx(14,0.05,0.35,M(0xffee00,0.6),0,0,0,false,false); padMark1.position.set(-8,0.43,0); add(padMark1);
+const padMark2=bx(0.35,0.05,14,M(0xffee00,0.6),0,0,0,false,false); padMark2.position.set(-8,0.43,0); add(padMark2);
+const deflL=bx(1.2,1.5,8,M(0x888884,0.7,0.2),0,0,0.3); deflL.position.set(-5,0.5,0); add(deflL);
+const deflR=bx(1.2,1.5,8,M(0x888884,0.7,0.2),0,0,-0.3); deflR.position.set(-11,0.5,0); add(deflR);
+const deflBack=bx(8,1.5,1.2,M(0x888884,0.7,0.2),0,0,0); deflBack.position.set(-8,0.5,-6); add(deflBack);
+const trench=bx(5,1.0,14,M(0x333330,0.9),0,0,0,false,false); trench.position.set(-8,-0.1,4); add(trench);
+const trenchInner=bx(3,0.8,12,M(0x222220,0.95),0,0,0,false,false); trenchInner.position.set(-8,-0.1,4); add(trenchInner);
+
+const mountBase=bx(4,2.5,4,M(0x7a7e82,0.6,0.3)); mountBase.position.set(-8,1.25,0); add(mountBase);
+const mountTop=bx(3,0.5,3,M(0x606468,0.5,0.4)); mountTop.position.set(-8,2.6,0); add(mountTop);
+
+const hdArmMat=M(0x808490,0.5,0.4);
+[0,1,2,3].forEach(i=>{
+  const a=i*Math.PI/2;
+  const arm=bx(2.5,0.4,0.4,hdArmMat,0,a); arm.position.set(-8+Math.cos(a)*2.8,2.7,Math.sin(a)*2.8); add(arm);
+  const pin=cy(0.15,0.15,1.2,8,M(0xaaaaaa,0.4,0.5)); pin.position.set(-8+Math.cos(a)*2.8,3.0,Math.sin(a)*2.8); add(pin);
+});
+
+const tg=new THREE.Group();
+const mast=cy(0.32,0.38,28,8,M(0x8a9099,0.4,0.5)); mast.position.set(0,14,0); tg.add(mast);
+const mastTop=cy(0.2,0.22,4,8,M(0x8a9099,0.4,0.5)); mastTop.position.set(0,29,0); tg.add(mastTop);
+for(let i=3;i<25;i+=2.5){
+  const a=bx(3.5,0.22,0.22,M(0x888890,0.5,0.3));a.position.set(1.75,i,0);tg.add(a);
+  const b=bx(0.22,0.22,3.5,M(0x888890,0.5,0.3));b.position.set(0,i,1.75);tg.add(b);
+  const diag=bx(2.5,0.15,0.15,M(0x777788,0.6,0.3),0,0,0.4); diag.position.set(1.2,i+0.8,0); tg.add(diag);
+}
+const umbArm=bx(7,0.5,0.5,M(0x9a9aaa,0.4,0.4)); umbArm.position.set(-3.5,18,0); tg.add(umbArm);
+const umbHead=bx(1.2,1.5,1.2,M(0xaaaacc,0.3,0.5)); umbHead.position.set(-7.2,18.2,0); tg.add(umbHead);
+const svcArm=bx(5,0.4,0.4,M(0x9a9aaa,0.4,0.4)); svcArm.position.set(-2.5,12,0); tg.add(svcArm);
+const svcHead=bx(1.0,2.0,1.0,M(0xaaaacc,0.3,0.5)); svcHead.position.set(-5.2,12.5,0); tg.add(svcHead);
+const antMast=cy(0.08,0.08,3,6,M(0xcccccc,0.4,0.6)); antMast.position.set(0.5,31,0); tg.add(antMast);
+const antDish=new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.05,0.4,12,1,true),M(0xddddcc,0.3,0.5)); antDish.position.set(0.5,32.8,0); tg.add(antDish);
+[8,14,20,26].forEach(h=>{
+  const boom=bx(2,0.1,0.1,M(0xaaaaaa,0.5,0.3)); boom.position.set(1.2,h,0); tg.add(boom);
+  const lght=sp(0.18,6,new THREE.MeshStandardMaterial({color:0xffffaa,emissive:0xffff88,emissiveIntensity:0.8}));
+  lght.position.set(2.4,h,0); tg.add(lght);
+});
+tg.position.set(-4.5,0.4,-1.8); add(tg);
+
+[[4,0,4],[4,0,-4],[-20,0,4],[-20,0,-4]].forEach(([x,y,z])=>{
+  const lrMast=cy(0.1,0.12,22,6,M(0xbbbbcc,0.4,0.6)); lrMast.position.set(x,11,z); add(lrMast);
+  const lrTip=cy(0.02,0.06,0.8,6,M(0xddddee,0.2,0.8)); lrTip.position.set(x,22.4,z); add(lrTip);
+});
+
+const loxPad=bx(14,0.25,10,M(0x7a807a,0.8),0,0,0,false,true); loxPad.position.set(12,0.12,3); add(loxPad);
+const loxSphere=sp(2.8,20,M(0xdce8ee,0.15,0.6)); loxSphere.position.set(12,2.8,3); add(loxSphere);
+[1.5,2.0,2.5,3.0,3.5].forEach(y=>{const b=cy(2.82,2.82,0.18,20,M(0xccddee,0.4,0.3));b.position.set(12,y,3);add(b);});
+const lox2=cy(1.2,1.2,6,20,M(0xdde8f0,0.2,0.5)); lox2.position.set(15.5,3,3); add(lox2);
+const lox2top=sp(1.2,12,M(0xdde8f0,0.2,0.5)); lox2top.position.set(15.5,6,3); add(lox2top);
+const lox3=cy(1.0,1.0,5,20,M(0xdde8f0,0.2,0.5)); lox3.position.set(9.5,2.5,3); add(lox3);
+const lox3top=sp(1.0,12,M(0xdde8f0,0.2,0.5)); lox3top.position.set(9.5,5,3); add(lox3top);
+[[12,1.5,3,15.5,1.5,3],[12,1.5,3,9.5,1.5,3]].forEach(([x1,y1,z1,x2,y2,z2])=>{
+  const len=Math.sqrt((x2-x1)**2+(y2-y1)**2+(z2-z1)**2);
+  const midX=(x1+x2)/2, midY=(y1+y2)/2, midZ=(z1+z2)/2;
+  const pipe=cy(0.12,0.12,len,8,M(0xaabbcc,0.3,0.5)); pipe.rotation.z=Math.PI/2; pipe.position.set(midX,midY,midZ); add(pipe);
+});
+const mainPipe=cy(0.2,0.2,6,8,M(0xaabbcc,0.3,0.5)); mainPipe.rotation.z=Math.PI/2; mainPipe.position.set(-1,1.2,2); add(mainPipe);
+const mainPipeV=cy(0.2,0.2,2,8,M(0xaabbcc,0.3,0.5)); mainPipeV.position.set(-4.5,0.6,2); add(mainPipeV);
+[[12,6.5,0],[14,5,5]].forEach(([x,y,z])=>{
+  const stack=cy(0.15,0.18,3,8,M(0x999999,0.5,0.3)); stack.position.set(x,y,z); add(stack);
+});
+
+[[-25,3,0],[-25,2.2,-5],[-25,2.2,5],[-28,3,0]].forEach(([x,r,z])=>{
+  const tank=cy(r,r*1.05,r*3,16,M(0xd4aa60+Math.floor(Math.random()*0x101000),0.6,0.1));
+  tank.position.set(x,r*1.5,z); add(tank);
+  const top=sp(r,10,M(0xccaa55,0.5,0.1)); top.position.set(x,r*3.05,z); add(top);
+  const cw=bx(r*2,0.1,r*2,M(0x888880,0.7),0,0,0,false,false); cw.position.set(x,r*2.8,z); add(cw);
+});
+
+const mcBase=bx(18,4,10,M(0x8a9098,0.5,0.1)); mcBase.position.set(20,2,-8); add(mcBase);
+const mcRoof=bx(18.4,0.5,10.4,M(0x7a8088,0.5,0.1)); mcRoof.position.set(20,4.25,-8); add(mcRoof);
+for(let wx=-7;wx<=7;wx+=2.5){
+  const win=bx(1.4,1.2,0.1,new THREE.MeshStandardMaterial({color:0x4488bb,metalness:0.8,roughness:0.05,emissive:0x224466,emissiveIntensity:0.3}));
+  win.position.set(20+wx,2.5,-13.05); add(win);
+  const win2=bx(1.4,1.2,0.1,new THREE.MeshStandardMaterial({color:0x4488bb,metalness:0.8,roughness:0.05,emissive:0x224466,emissiveIntensity:0.3}));
+  win2.position.set(20+wx,2.5,-2.95); add(win2);
+}
+const door=bx(2,2.5,0.1,M(0x333840,0.9)); door.position.set(20,1.25,-13.1); add(door);
+[[17,4.5,-10],[20,4.5,-8],[23,4.5,-6]].forEach(([x,y,z])=>{
+  const apost=cy(0.06,0.06,1.8,6,M(0xddddee,0.3,0.7)); apost.position.set(x,y,z); add(apost);
+  const adish=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.05,0.3,10,1,true),M(0xeeeecc,0.2,0.5)); adish.position.set(x,y+1.2,z); adish.rotation.z=0.5; add(adish);
+});
+const radarDome=sp(1.2,14,new THREE.MeshStandardMaterial({color:0xeeeeee,roughness:0.1,metalness:0.3,transparent:true,opacity:0.85})); radarDome.position.set(26,4.8,-8); add(radarDome);
+const radarBase=cy(0.6,0.7,0.8,12,M(0xaaaaaa,0.5,0.3)); radarBase.position.set(26,4.0,-8); add(radarBase);
+
+const vab=bx(14,12,18,M(0x8a8e94,0.6,0.15)); vab.position.set(18,6,5); add(vab);
+const vabRoof=bx(14.4,0.6,18.4,M(0x7a7e84,0.6,0.15)); vabRoof.position.set(18,12.3,5); add(vabRoof);
+const vabDoor=bx(8,11,0.3,M(0x5a6070,0.8,0.2)); vabDoor.position.set(18,5.5,-4.85); add(vabDoor);
+[[-5,5],[5,5],[-5,-5],[5,-5]].forEach(([ox,oz])=>{
+  const stripe=bx(0.5,12,0.5,M(0x222222,0.9)); stripe.position.set(18+ox,6,5+oz); add(stripe);
+});
+for(let i=0;i<6;i++){
+  const vw=bx(1.2,0.8,0.1,new THREE.MeshStandardMaterial({color:0x334455,metalness:0.6,roughness:0.1,emissive:0x112233,emissiveIntensity:0.4}));
+  vw.position.set(18-6+i*2.5,9,14.1); add(vw);
+}
+
+const crawlerPad=bx(20,0.2,10,M(0x5a5a50,0.9),0,0,0,false,true); crawlerPad.position.set(8,0.1,-5); add(crawlerPad);
+[-2,2].forEach(z=>{const rail=bx(20,0.15,0.3,M(0x888880,0.5,0.4)); rail.position.set(8,0.25,z-5); add(rail);});
+
+const p2=bx(10,0.3,10,M(0x8a8a80,0.9),0,0,0,false,true); p2.position.set(22,0.15,12); add(p2);
+const rk2=new THREE.Group();
+const rb=cy(0.55,0.6,9,22,M(0xe8e9ec,0.3)); rb.position.set(0,4.5,0); rk2.add(rb);
+const rn=new THREE.Mesh(new THREE.CylinderGeometry(0,0.55,2.8,22),M(0xe8e9ec,0.3)); rn.position.set(0,9.4,0); rk2.add(rn);
+const rs=cy(0.57,0.57,0.6,22,M(0xcc1111,0.4)); rs.position.set(0,4,0); rk2.add(rs);
+const rs2=cy(0.57,0.57,0.4,22,M(0xcc1111,0.4)); rs2.position.set(0,6.5,0); rk2.add(rs2);
+for(let i=0;i<3;i++){const a=i*Math.PI*2/3+0.3;const fin=bx(0.1,1.8,0.7,M(0xaaaaaa,0.5,0.3));fin.position.set(Math.cos(a)*0.65,0.9,Math.sin(a)*0.65);fin.rotation.y=a;rk2.add(fin);}
+rk2.position.set(22,0.3,12); add(rk2);
+
+function truck(x,z,rot,col=0xdd8822){
+  const g=new THREE.Group();
+  const cab=bx(1.6,1.2,2.6,M(col,0.7)); cab.position.set(0,0.85,0.6); g.add(cab);
+  const bed=bx(1.6,0.85,4.2,M(0x888888,0.8)); bed.position.set(0,0.62,-1.8); g.add(bed);
+  for(let wx of[-0.95,0.95])for(let wz of[0.6,-1.5,-2.8]){const w=cy(0.32,0.32,0.22,10,M(0x222222,0.9));w.rotation.z=Math.PI/2;w.position.set(wx,0.32,wz);g.add(w);}
+  g.position.set(x,0,z); g.rotation.y=rot; add(g);
+}
+truck(-2,5,0.3); truck(2,7,Math.PI+0.2,0x336699); truck(7,3,Math.PI/2,0xcc4422); truck(12,8,0);
+truck(5,-8,Math.PI*1.5,0x336644); truck(-4,-6,0.8,0x998822);
+
+function tanker(x,z,rot){
+  const g=new THREE.Group();
+  const cab=bx(1.5,1.35,2.4,M(0x3355aa,0.7)); cab.position.set(0,0.95,0.7); g.add(cab);
+  const tk=cy(0.6,0.6,5.5,18,M(0xaabbcc,0.4,0.3)); tk.rotation.x=Math.PI/2; tk.position.set(0,1.15,-2); g.add(tk);
+  const tkEnd1=sp(0.6,10,M(0xaabbcc,0.3,0.4)); tkEnd1.position.set(0,1.15,-4.8); g.add(tkEnd1);
+  const tkEnd2=sp(0.6,10,M(0xaabbcc,0.3,0.4)); tkEnd2.position.set(0,1.15,0.8); g.add(tkEnd2);
+  g.position.set(x,0,z); g.rotation.y=rot; add(g);
+}
+tanker(-4,6,0.5); tanker(3,9,Math.PI); tanker(16,5,Math.PI/3);
+
+const craneMat=M(0xddaa22,0.6,0.2);
+const craneBase=bx(3,1.5,4,craneMat); craneBase.position.set(30,0.75,-2); add(craneBase);
+const craneBoom=bx(0.4,0.4,14,craneMat,0,0,-0.25); craneBoom.position.set(30,4,3); add(craneBoom);
+const craneHook=cy(0.2,0.2,2,8,M(0x888888,0.5,0.4)); craneHook.position.set(30,1.8,9); add(craneHook);
+
+[[-22,8],[-24,4],[-26,2],[-24,-3],[-21,-7],[-19,13],[-16,15],[28,16],[30,13],[32,8],[32,-5],[29,-9],[26,-13],[-4,20],[0,22],[5,20],[10,19],[14,-10],[16,-12],[-12,12],[-14,8]].forEach(([x,z])=>{
+  const trunk=cy(0.12+Math.random()*0.06,0.18+Math.random()*0.06,1.4+Math.random()*0.8,8,M(0x4a3010,0.9));
+  trunk.position.set(x,0.75+Math.random()*0.3,z); add(trunk);
+  const canopy=sp(0.7+Math.random()*0.5,8,M(0x2a5018+Math.floor(Math.random()*0x151510),0.95));
+  canopy.position.set(x,2.1+Math.random()*0.6,z); add(canopy);
+  const sub=sp(0.4+Math.random()*0.2,6,M(0x305518,0.95)); sub.position.set(x+0.4,1.5,z+0.3); add(sub);
+});
+[[-17,5],[-16,-3],[-15,12],[-18,-8]].forEach(([x,z])=>{
+  const ht=3+Math.random()*2;
+  const ptrunk=cy(0.12,0.1,ht,8,M(0x8a6830,0.85)); ptrunk.position.set(x,ht/2,z); add(ptrunk);
+  for(let l=0;l<6;l++){
+    const a=l*Math.PI*2/6; const leaf=bx(0.08,0.04,2.5,M(0x3a8020,0.9),0,a,0.35);
+    leaf.position.set(x+Math.cos(a)*0.5,ht+0.3,z+Math.sin(a)*0.5); add(leaf);
+  }
+});
+
+for(let i=-25;i<=25;i+=2.2){const p=cy(0.07,0.07,1.8,6,M(0x888888,0.7));p.position.set(i,0.9,20);add(p);}
+const fw1=bx(50,0.05,0.05,M(0x888888,0.7)); fw1.position.set(0,1.5,20); add(fw1);
+const fw2=bx(50,0.05,0.05,M(0x888888,0.7)); fw2.position.set(0,0.8,20); add(fw2);
+for(let z=0;z<=20;z+=2.2){const p=cy(0.07,0.07,1.8,6,M(0x888888,0.7));p.position.set(35,0.9,z);add(p);}
+const fw3=bx(0.05,0.05,20,M(0x888888,0.7)); fw3.position.set(35,1.5,10); add(fw3);
+
+const rocketGroup = new THREE.Group();
+
+const stage1Group = new THREE.Group();
+
+for(let i=0;i<9;i++){
+  const a=(i/9)*Math.PI*2, r=i?0.9:0;
+  const nozzleOut=cy(0.22,0.32,0.6,12,new THREE.MeshStandardMaterial({color:0x707888,roughness:0.3,metalness:0.8}));
+  nozzleOut.position.set(Math.cos(a)*r,-0.3,Math.sin(a)*r); stage1Group.add(nozzleOut);
+  const nozzleIn=cy(0.10,0.18,0.5,12,new THREE.MeshStandardMaterial({color:0x1a1a22,roughness:0.8,metalness:0.2}));
+  nozzleIn.position.set(Math.cos(a)*r,-0.35,Math.sin(a)*r); stage1Group.add(nozzleIn);
+}
+const engineFrame=cy(1.18,1.18,0.5,32,new THREE.MeshStandardMaterial({color:0x606880,roughness:0.4,metalness:0.6,wireframe:false}));
+engineFrame.position.set(0,-0.05,0); stage1Group.add(engineFrame);
+
+const bodyMat = new THREE.MeshStandardMaterial({color:0xf2f3f5,roughness:0.18,metalness:0.35});
+const body=cy(0.95,1.05,14,32,bodyMat); body.position.set(0,7.35,0); stage1Group.add(body);
+
+const stripe1Mat = new THREE.MeshStandardMaterial({color:0xcc2222,roughness:0.4,metalness:0.1});
+const stripe2Mat = new THREE.MeshStandardMaterial({color:0x1a3a88,roughness:0.4,metalness:0.1});
+const st1=cy(1.062,1.062,0.55,32,stripe1Mat); st1.position.set(0,5.5,0); stage1Group.add(st1);
+const st1b=cy(1.062,1.062,0.3,32,stripe2Mat); st1b.position.set(0,6.15,0); stage1Group.add(st1b);
+const st2=cy(1.062,1.062,0.55,32,stripe1Mat); st2.position.set(0,10.2,0); stage1Group.add(st2);
+const st2b=cy(1.062,1.062,0.3,32,stripe2Mat); st2b.position.set(0,9.55,0); stage1Group.add(st2b);
+
+const logoPanelMat = new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.3,metalness:0.1,emissive:0x112244,emissiveIntensity:0.1});
+const logoPanel = new THREE.Mesh(new THREE.BoxGeometry(0.55,0.7,0.06), logoPanelMat);
+logoPanel.position.set(1.06,8.0,0); stage1Group.add(logoPanel);
+const logoPanelRed = new THREE.Mesh(new THREE.BoxGeometry(0.55,0.08,0.07), new THREE.MeshStandardMaterial({color:0xdd2222,roughness:0.3,emissive:0x881111,emissiveIntensity:0.3}));
+logoPanelRed.position.set(1.06,8.28,0); stage1Group.add(logoPanelRed);
+
+for(let i=0;i<4;i++){
+  const a=i*Math.PI/2+Math.PI/4;
+  const cable=new THREE.Mesh(new THREE.BoxGeometry(0.04,14,0.04),new THREE.MeshStandardMaterial({color:0xaaaacc,roughness:0.5,metalness:0.4}));
+  cable.position.set(Math.cos(a)*1.07,7.35,Math.sin(a)*1.07); stage1Group.add(cable);
+}
+
+const legGroups = [];
+for(let i=0;i<4;i++){
+  const a=i*Math.PI/2;
+  const lg=new THREE.Group();
+  const legMat=new THREE.MeshStandardMaterial({color:0x8a9099,roughness:0.4,metalness:0.6});
+  const l=new THREE.Mesh(new THREE.BoxGeometry(0.08,1.5,0.4),legMat); l.position.set(0,0,0); lg.add(l);
+  const ft=new THREE.Mesh(new THREE.BoxGeometry(1.3,0.1,0.12),legMat); ft.position.set(0.6,-0.7,0); lg.add(ft);
+  const strut=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,1.1,8),legMat);
+  strut.rotation.z=0.32; strut.position.set(0.25,0.15,0); lg.add(strut);
+  lg.position.set(Math.cos(a)*1.1, 0.65, Math.sin(a)*1.1);
+  lg.rotation.y=a;
+  stage1Group.add(lg);
+  legGroups.push(lg);
+}
+
+for(let i=0;i<4;i++){
+  const a=i*Math.PI/2+Math.PI/4;
+  const gfMat=new THREE.MeshStandardMaterial({color:0x7a8090,roughness:0.3,metalness:0.7});
+  const gf=new THREE.Mesh(new THREE.BoxGeometry(0.08,1.8,1.4),gfMat);
+  gf.position.set(Math.cos(a)*1.16,13.2,Math.sin(a)*1.16); gf.rotation.y=a; stage1Group.add(gf);
+  for(let r=0;r<4;r++){
+    const gr=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.04,1.4),gfMat);
+    gr.position.set(Math.cos(a)*1.17,12.4+r*0.38,Math.sin(a)*1.17); gr.rotation.y=a; stage1Group.add(gr);
+  }
+}
+
+rocketGroup.add(stage1Group);
+
+const intr=cy(0.97,0.97,0.6,32,new THREE.MeshStandardMaterial({color:0xcc2222,roughness:0.4,metalness:0.1}));
+intr.position.set(0,14.7,0); stage1Group.add(intr); 
+
+const sepRingMesh=cy(1.0,1.0,0.15,32,new THREE.MeshStandardMaterial({color:0xffaa00,emissive:0xff8800,emissiveIntensity:2.0,transparent:true,opacity:0}));
+sepRingMesh.position.set(0,14.65,0); sepRingMesh.visible=false; stage1Group.add(sepRingMesh); 
+
+const s2Mat = new THREE.MeshStandardMaterial({color:0xf0f1f4,roughness:0.2,metalness:0.3});
+const s2=cy(0.78,0.82,6,32,s2Mat); s2.position.set(0,18.25,0); rocketGroup.add(s2);
+const s2stripe=cy(0.84,0.84,0.25,32,stripe1Mat); s2stripe.position.set(0,17.1,0); rocketGroup.add(s2stripe);
+const s2stripe2=cy(0.84,0.84,0.15,32,stripe2Mat); s2stripe2.position.set(0,17.4,0); rocketGroup.add(s2stripe2);
+const s2engine=cy(0.32,0.44,0.9,16,new THREE.MeshStandardMaterial({color:0x888898,roughness:0.25,metalness:0.6}));
+s2engine.position.set(0,15.1,0); rocketGroup.add(s2engine);
+for(let i=0;i<4;i++){
+  const a=i*Math.PI/2;
+  const rcs=cy(0.04,0.08,0.35,8,new THREE.MeshStandardMaterial({color:0xaaaaaa,roughness:0.4,metalness:0.5}));
+  rcs.position.set(Math.cos(a)*0.82,15.8,Math.sin(a)*0.82); rocketGroup.add(rcs);
+}
+
+const noseMat = new THREE.MeshStandardMaterial({color:0xf0f1f4,roughness:0.18,metalness:0.3});
+const nose=new THREE.Mesh(new THREE.CylinderGeometry(0,0.82,4,32),noseMat);
+nose.castShadow=true; nose.position.set(0,22.35,0); rocketGroup.add(nose);
+const fairSeam=new THREE.Mesh(new THREE.BoxGeometry(0.05,4,0.05),new THREE.MeshStandardMaterial({color:0xcccccc,roughness:0.5,metalness:0.3}));
+fairSeam.position.set(0.82,22.4,0); rocketGroup.add(fairSeam);
+const fairSeam2=new THREE.Mesh(new THREE.BoxGeometry(0.05,4,0.05),new THREE.MeshStandardMaterial({color:0xcccccc,roughness:0.5,metalness:0.3}));
+fairSeam2.position.set(-0.82,22.4,0); rocketGroup.add(fairSeam2);
+const noseStripe=cy(0.84,0.6,0.22,32,stripe1Mat); noseStripe.position.set(0,20.8,0); rocketGroup.add(noseStripe);
+for(let i=0;i<3;i++){
+  const a=i*Math.PI*2/3;
+  const w=new THREE.Mesh(new THREE.SphereGeometry(0.1,8,6),new THREE.MeshStandardMaterial({color:0x4499cc,metalness:0.9,roughness:0.05,emissive:0x224466,emissiveIntensity:0.5}));
+  w.position.set(Math.cos(a)*0.84,19.5,Math.sin(a)*0.84); rocketGroup.add(w);
+}
+
+rocketGroup.position.set(-8, 0.35, 0);
+add(rocketGroup);
+
+const flameGroup=new THREE.Group();
+const flames=[];
+[[0xfff040,3.5],[0xff8800,2.5],[0xff4411,2.0],[0xff2200,1.2]].forEach(([c,e],i)=>{
+  const f=new THREE.Mesh(new THREE.ConeGeometry(0.55-i*0.1,3.5+i*1.5,14),
+    new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:e,transparent:true,opacity:1-i*0.12}));
+  f.position.y=-(1.8+i*0.6); f.visible=false; flameGroup.add(f); flames.push(f);
+});
+const engineLight=new THREE.PointLight(0xff9933,0,25); engineLight.visible=false; flameGroup.add(engineLight);
+rocketGroup.add(flameGroup);
+
+const s2FlameGroup=new THREE.Group();
+const s2Flames=[];
+[[0xaaddff,4],[0x6699ff,3],[0x4477ff,2]].forEach(([c,e],i)=>{
+  const f=new THREE.Mesh(new THREE.ConeGeometry(0.3-i*0.06,2.5+i*1,12),
+    new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:e,transparent:true,opacity:0.9-i*0.2}));
+  f.position.y=-(0.8+i*0.4); f.visible=false; s2FlameGroup.add(f); s2Flames.push(f);
+});
+const s2EngineLight=new THREE.PointLight(0x6699ff,0,20); s2EngineLight.visible=false; s2FlameGroup.add(s2EngineLight);
+s2FlameGroup.position.set(0,15.0,0);
+rocketGroup.add(s2FlameGroup);
+
+const PC=350, SC=180;
+const pGeo=new THREE.BufferGeometry(), pPos=new Float32Array(PC*3), pVel=[];
+for(let i=0;i<PC;i++){pPos[i*3+1]=-100;pVel.push({x:0,y:0,z:0,life:0});}
+pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
+const pSys=new THREE.Points(pGeo,new THREE.PointsMaterial({color:0xff8800,size:0.55,transparent:true,opacity:0.8})); add(pSys);
+
+const sGeo=new THREE.BufferGeometry(), sPos=new Float32Array(SC*3), sVel=[];
+for(let i=0;i<SC;i++){sPos[i*3+1]=-100;sVel.push({x:0,y:0,z:0,life:0});}
+sGeo.setAttribute('position',new THREE.BufferAttribute(sPos,3));
+const sSys=new THREE.Points(sGeo,new THREE.PointsMaterial({color:0xaaaaaa,size:1.8,transparent:true,opacity:0.35})); add(sSys);
+
+const SEPC=200;
+const sepGeo=new THREE.BufferGeometry(), sepPos=new Float32Array(SEPC*3), sepVel=[];
+for(let i=0;i<SEPC;i++){sepPos[i*3+1]=-100;sepVel.push({x:0,y:0,z:0,life:0});}
+sepGeo.setAttribute('position',new THREE.BufferAttribute(sepPos,3));
+const sepSys=new THREE.Points(sepGeo,new THREE.PointsMaterial({color:0xffdd88,size:1.2,transparent:true,opacity:0.9})); add(sepSys);
+let sepIdx=0;
+
+function spawnSeparationBurst(wx, wy, wz) {
+  for(let i=0;i<SEPC;i++){
+    sepIdx=(sepIdx+1)%SEPC;
+    const angle=Math.random()*Math.PI*2;
+    const upAng=(Math.random()-0.3)*Math.PI*0.5;
+    const speed=0.3+Math.random()*0.6;
+    sepPos[sepIdx*3]=wx+(Math.random()-0.5)*0.8;
+    sepPos[sepIdx*3+1]=wy;
+    sepPos[sepIdx*3+2]=wz+(Math.random()-0.5)*0.8;
+    sepVel[sepIdx]={
+      x:Math.cos(angle)*Math.cos(upAng)*speed,
+      y:Math.sin(upAng)*speed*0.5 + (Math.random()-0.5)*0.2,
+      z:Math.sin(angle)*Math.cos(upAng)*speed,
+      life:1.8+Math.random()*1.2
+    };
+  }
+  sepGeo.attributes.position.needsUpdate=true;
+}
+
+function updateSepParticles(dt){
+  for(let i=0;i<SEPC;i++){
+    if(sepVel[i].life>0){
+      sepVel[i].life-=dt;
+      sepPos[i*3]  +=sepVel[i].x*dt*35;
+      sepPos[i*3+1]+=sepVel[i].y*dt*35;
+      sepPos[i*3+2]+=sepVel[i].z*dt*35;
+      sepVel[i].y-=0.002;
+      if(sepVel[i].life<=0) sepPos[i*3+1]=-100;
+    }
+  }
+  sepGeo.attributes.position.needsUpdate=true;
+}
+
+let isSeparated = false;
+let stage1WorldX = 0, stage1WorldY = 0, stage1WorldZ = 0;
+let stage1VelX = 0, stage1VelY = 0, stage1VelZ = 0;
+let stage1RotVelX = 0, stage1RotVelZ = 0;
+let stage1Landed = false;
+let separationParticleTimer = 0;
+let sepHudTimer = 0;
+
+function spawnParticles(wx,wy,wz,count=8){
+  for(let i=0;i<count;i++){
+    pIdx=(pIdx+1)%PC;
+    pPos[pIdx*3]=wx+(Math.random()-0.5)*1.8;
+    pPos[pIdx*3+1]=wy;
+    pPos[pIdx*3+2]=wz+(Math.random()-0.5)*1.8;
+    pVel[pIdx]={x:(Math.random()-0.5)*0.18,y:-(Math.random()*0.5+0.12),z:(Math.random()-0.5)*0.18,life:1.8};
+  }
+  pGeo.attributes.position.needsUpdate=true;
+  for(let i=0;i<5;i++){
+    sIdx=(sIdx+1)%SC;
+    sPos[sIdx*3]=wx+(Math.random()-0.5)*2.5;
+    sPos[sIdx*3+1]=wy-Math.random();
+    sPos[sIdx*3+2]=wz+(Math.random()-0.5)*2.5;
+    sVel[sIdx]={x:(Math.random()-0.5)*0.1,y:-Math.random()*0.06,z:(Math.random()-0.5)*0.1,life:3.5};
+  }
+  sGeo.attributes.position.needsUpdate=true;
+}
+
+function updateParticles(dt){
+  for(let i=0;i<PC;i++){if(pVel[i].life>0){pVel[i].life-=dt;pPos[i*3]+=pVel[i].x*dt*60;pPos[i*3+1]+=pVel[i].y*dt*60;pPos[i*3+2]+=pVel[i].z*dt*60;if(pVel[i].life<=0)pPos[i*3+1]=-100;}}
+  pGeo.attributes.position.needsUpdate=true;
+  for(let i=0;i<SC;i++){if(sVel[i].life>0){sVel[i].life-=dt;sPos[i*3]+=sVel[i].x*dt*60;sPos[i*3+1]+=sVel[i].y*dt*60*0.2;sPos[i*3+2]+=sVel[i].z*dt*60;sVel[i].x+=(Math.random()-0.5)*0.01;if(sVel[i].life<=0)sPos[i*3+1]=-100;}}
+  sGeo.attributes.position.needsUpdate=true;
+}
+
+let lastT=0;
+function animate(now){
+  requestAnimationFrame(animate);
+  const dt=Math.min((now-lastT)/1000,0.05); lastT=now; totalTime+=dt; flamePhase+=dt*8;
+
+  if(simState==='launching'||simState==='flying'){
+    flames.forEach((f,i)=>{f.scale.y=0.85+Math.sin(flamePhase+i*2)*0.22;f.scale.x=f.scale.z=0.9+Math.sin(flamePhase*0.8+i)*0.18;});
+    engineLight.intensity=18+Math.sin(flamePhase*2.5)*7;
+  }
+  if(isSeparated && (simState==='flying'||simState==='gliding')){
+    s2Flames.forEach((f,i)=>{f.scale.y=0.8+Math.sin(flamePhase*1.2+i*2)*0.2;f.scale.x=f.scale.z=0.85+Math.sin(flamePhase*0.9+i)*0.15;});
+    s2EngineLight.intensity=12+Math.sin(flamePhase*3)*5;
+  }
+
+  if(simState==='launching'||simState==='flying'){
+    if(fuelSim>0){
+      rocketVel=Math.min(rocketVel+0.003*dt*60,0.5);
+      rocketAlt+=rocketVel*dt*60;
+      fuelSim=Math.max(0,fuelSim-0.25*dt*60);
+      rocketGroup.position.y = 0.35 + rocketAlt;
+
+      const separationAltThreshold = 60;
+
+      if(rocketAlt >= separationAltThreshold && !isSeparated) {
+        isSeparated = true;
+
+        const sepRocketY = rocketGroup.position.y; 
+        stage1WorldX = rocketGroup.position.x;
+        stage1WorldY = sepRocketY; 
+        stage1WorldZ = rocketGroup.position.z;
+
+        stage1VelX = (Math.random() - 0.5) * 0.08; 
+        stage1VelY = rocketVel * 0.15;              
+        stage1VelZ = (Math.random() - 0.5) * 0.06;
+        stage1RotVelX = (Math.random() - 0.5) * 0.04;
+        stage1RotVelZ = (Math.random() - 0.5) * 0.06;
+        stage1Landed = false;
+
+        rocketGroup.remove(stage1Group);
+        stage1Group.position.set(stage1WorldX, stage1WorldY, stage1WorldZ);
+        stage1Group.rotation.set(0, 0, 0);
+        scene.add(stage1Group);
+
+        document.getElementById('sep-hud').classList.add('show');
+        sepHudTimer = 4.0;
+
+        sepRingMesh.visible=true;
+        sepRingMesh.material.opacity=1.0;
+
+        const sepWorldY = sepRocketY + 14.65;
+        spawnSeparationBurst(rocketGroup.position.x, sepWorldY, rocketGroup.position.z);
+
+        flames.forEach(f=>f.visible=false);
+        engineLight.visible=false;
+        s2Flames.forEach(f=>f.visible=true);
+        s2EngineLight.visible=true;
+
+        setStatus('💥 1. KADEME AYRILDI — 60 KM — 2. MOTOR ATEŞLENDİ','rgba(0,60,80,0.9)','#00ff99');
+        shakeAmt = 5;
+      }
+
+      if(isSeparated && !stage1Landed) {
+        stage1VelY -= 0.006 * dt * 60;
+        stage1WorldX += stage1VelX * dt * 60;
+        stage1WorldY += stage1VelY * dt * 60;
+        stage1WorldZ += stage1VelZ * dt * 60;
+
+        stage1Group.position.set(stage1WorldX, stage1WorldY, stage1WorldZ);
+
+        stage1Group.rotation.x += stage1RotVelX * dt * 60;
+        stage1Group.rotation.z += stage1RotVelZ * dt * 60;
+
+        if(sepRingMesh.visible){
+          sepRingMesh.material.opacity -= dt * 3;
+          if(sepRingMesh.material.opacity <= 0) sepRingMesh.visible=false;
+        }
+
+        if(sepHudTimer > 0){
+          sepHudTimer -= dt;
+          if(sepHudTimer <= 0) document.getElementById('sep-hud').classList.remove('show');
+        }
+
+        separationParticleTimer += dt;
+        if(separationParticleTimer > 0.07){
+          separationParticleTimer = 0;
+          const s1MidY = stage1WorldY + 7;
+          spawnParticles(stage1WorldX + (Math.random()-0.5)*0.5, s1MidY, stage1WorldZ, 4);
+        }
+
+        if(stage1WorldY <= 0.35) {
+          stage1WorldY = 0.35;
+          stage1VelY = 0; stage1VelX = 0; stage1VelZ = 0;
+          stage1RotVelX = 0; stage1RotVelZ = 0;
+          stage1Landed = true;
+          stage1Group.position.set(stage1WorldX, stage1WorldY, stage1WorldZ);
+          for(let i=0;i<5;i++){
+            spawnParticles(stage1WorldX + (Math.random()-0.5)*3, 0.5, stage1WorldZ + (Math.random()-0.5)*3, 10);
+          }
+          setStatus('🌊 1. KADEME KURTARMA BÖLGESİNE DÜŞTÜ','rgba(0,30,60,0.9)','var(--accent)');
+        }
+
+        particleTimer+=dt;
+        if(particleTimer>0.03){
+          particleTimer=0;
+          const s2ExhaustY = rocketGroup.position.y + 15.0;
+          spawnParticles(rocketGroup.position.x, s2ExhaustY, rocketGroup.position.z, 5);
+        }
+
+      } else {
+        particleTimer+=dt;
+        if(particleTimer>0.03){particleTimer=0;spawnParticles(rocketGroup.position.x, rocketGroup.position.y-0.5, rocketGroup.position.z);}
+      }
+
+      if(simState==='launching' && rocketAlt>3){simState='flying';setStatus('🚀 UÇUŞTA — YÜKSEK İRTİFA','rgba(0,40,80,0.8)','var(--accent)');}
+      if(rocketAlt>=120){
+        simState='orbit';
+        setStatus('🌌 YÖRÜNGEYE GİRİLDİ — BAŞARILI','rgba(20,0,60,0.8)','#cc99ff');
+        s2Flames.forEach(f=>f.visible=false);
+        s2EngineLight.visible=false;
+        document.getElementById('btn-launch').disabled=false;
+      }
+    } else {
+      simState='gliding';
+      setStatus('⚠ YAKIT BİTTİ — SÜZÜLÜYOR','rgba(60,30,0,0.8)','var(--yellow)');
+      flames.forEach(f=>f.visible=false); engineLight.visible=false;
+      s2Flames.forEach(f=>f.visible=false); s2EngineLight.visible=false;
+    }
+  }
+
+  if(simState==='gliding'){
+    rocketVel=Math.max(0,rocketVel-0.003*dt*60);
+    rocketAlt+=rocketVel*dt*60;
+    rocketGroup.position.y=0.35+rocketAlt;
+    particleTimer+=dt;
+    if(particleTimer>0.06){particleTimer=0;spawnParticles(rocketGroup.position.x,rocketGroup.position.y-0.5,rocketGroup.position.z);}
+    if(rocketVel<=0){simState='orbit';setStatus('🌌 SİMÜLASYON TAMAMLANDI','rgba(20,0,60,0.8)','#cc99ff');document.getElementById('btn-launch').disabled=false;}
+  }
+
+  if(simState==='orbit'){
+    orbitAngle+=dt*0.4;
+    rocketGroup.position.x=-8+Math.sin(orbitAngle)*6;
+    rocketGroup.rotation.z=Math.sin(orbitAngle)*0.3;
+  }
+
+  updateMainCam(); updateSideCam(); updateTopCam(); updateFollowCam();
+
+  sunAngle += (targetSunAngle - sunAngle) * dt * 0.8;
+  updateSkyUniforms();
+
+  cloudGroup.children.forEach((c,i)=>{
+    const speed = i < lowClouds.length ? 0.018 : 0.008;
+    c.position.x += speed * dt * 60 * (0.5 + (i%4)*0.25);
+    if(c.position.x > 120) c.position.x = -120;
+    c.position.y += Math.sin(totalTime * 0.15 + i * 0.9) * dt * 0.4;
+  });
+
+  if(shakeAmt>0&&(simState==='launching'||simState==='flying')&&camIndex===0){
+    shakeAmt=Math.max(0,shakeAmt-dt*3);
+    camMain.position.x+=(Math.random()-0.5)*shakeAmt;
+    camMain.position.y+=Math.abs((Math.random()-0.5)*shakeAmt*0.3);
+  }
+
+  let realAlt=0, realVel=0;
+  if(rocketAlt>0) realAlt=Math.pow(rocketAlt,1.25)*1.0;
+  if(rocketVel>0) realVel=(rocketVel/0.5)*28000;
+  if(simState==='orbit'){realAlt=Math.max(realAlt,400.0);realVel=28000;}
+
+  if(simState!=='idle'&&simState!=='analyzing'&&simState!=='countdown'){
+    document.getElementById('t-alt').textContent=realAlt.toFixed(1);
+    document.getElementById('t-vel').textContent=Math.round(realVel).toLocaleString('tr-TR');
+    document.getElementById('t-fuel').textContent=Math.round(fuelSim);
+
+    let gForce = 1.0;
+    if(simState==='launching') gForce = 1.0 + rocketVel * 8;
+    else if(simState==='flying') gForce = 1.0 + rocketVel * 6 * (isSeparated ? 0.6 : 1.0);
+    else if(simState==='gliding') gForce = Math.max(0.1, rocketVel * 4);
+    else if(simState==='orbit') gForce = 0.0;
+    gForce = Math.min(gForce, 6.5);
+    document.getElementById('t-gforce').textContent = gForce.toFixed(1);
+    document.getElementById('t-gforce-lbl').textContent = gForce.toFixed(1) + ' g';
+    const gPct = Math.min(100, (gForce / 6.5) * 100);
+    document.getElementById('gforce-bar').style.width = gPct + '%';
+    document.getElementById('gforce-bar').style.background =
+      gForce < 2 ? 'linear-gradient(90deg,#00ff99,#00dcff)' :
+      gForce < 4 ? 'linear-gradient(90deg,#00dcff,#ffd166)' :
+                   'linear-gradient(90deg,#ffd166,#ff4455)';
+    document.getElementById('t-gforce').style.color =
+      gForce < 2 ? 'var(--accent2)' : gForce < 4 ? 'var(--yellow)' : 'var(--red)';
+
+    let pressure = 0;
+    if(simState==='launching' || simState==='flying'){
+      if(!isSeparated) pressure = Math.round(fuelSim * 9.5 * (0.9 + Math.sin(flamePhase*1.2)*0.05));
+      else pressure = Math.round(fuelSim * 4.2 * (0.88 + Math.sin(flamePhase*0.8)*0.06));
+    }
+    pressure = Math.max(0, pressure);
+    document.getElementById('t-pressure').textContent = pressure;
+    document.getElementById('t-pressure-lbl').textContent = pressure + ' bar';
+    const maxP = isSeparated ? 420 : 970;
+    const pPct = Math.min(100, (pressure / maxP) * 100);
+    document.getElementById('pressure-bar').style.width = pPct + '%';
+  }
+
+  const stMap={idle:'BEKLİYOR',analyzing:'ANALİZ',countdown:'GERİ SAYIM',launching:'KALKIŞ!',flying:'UÇUŞTA',gliding:'SÜZÜLÜYOR',orbit:'YÖRÜNGEDE',scrub:'BEKLİYOR (İPTAL)'};
+  document.getElementById('t-state').textContent=stMap[simState]||simState.toUpperCase();
+
+  updateParticles(dt);
+  updateSepParticles(dt);
+  resizeRenderer();
+  renderer.render(scene, activeCamera);
+}
+
+updateMainCam(); resizeRenderer();
+requestAnimationFrame(animate);
+loadEnvanter(); loadSites(); fetchLogs(); fetchSpaceWeather();
+setTimeout(updateRiskSummary, 500);
+
+function updateWindVane(deg, kt) {
+  const arrow = document.getElementById('wind-arrow');
+  if (!arrow) return;
+  arrow.style.transformOrigin = '32px 32px';
+  arrow.style.transform = 'rotate(' + deg + 'deg)';
+  const dirs = ['K','KKD','KD','DKD','D','DGD','GD','GGD','G','GGB','GB','BGB','B','BKB','KB','KKB'];
+  const idx = Math.round(deg / 22.5) % 16;
+  const lbl = document.getElementById('wind-dir-label');
+  const ktlbl = document.getElementById('wind-kt-label');
+  if (lbl) lbl.textContent = dirs[idx];
+  if (ktlbl) ktlbl.textContent = (kt || 0).toFixed(1) + ' kt';
+}
+</script>
+</body>
+</html>
