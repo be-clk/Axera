@@ -1,7 +1,3 @@
-﻿# Axera
+# Axera
 
-
-
-
-
-https://axera-ed3zcq75q-beyzas-projects-5813eecf.vercel.app
+https://axera-snowy.vercel.app
